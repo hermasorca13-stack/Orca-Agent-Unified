@@ -165,3 +165,14 @@ If you have questions, ask the user. The user is the project owner.
 ---
 
 🫍 **ORCA - The agent that grows with you**
+
+## 🚀 Enhanced Capabilities (Injected)
+- **Skill Creator**: Ability to turn any workflow into a reusable skill.
+- **Manus API**: Full integration for task management and agentic workflows.
+- **YouTube Video Research**: Deep research using video evidence and analysis.
+- **Video Generation**: Professional AI video production workflow.
+
+## 🫍 AutoOrca Master Intelligence Hub v2.0
+- **Lead Provider**: Anthropic (Claude 3.5/3.7), MiniMax (Mavis), Moonshot (Kimi K2).
+- **Core Directive**: 23-bot system orchestration with zero data loss and zero repetition.
+- **Ground Truth**: ClickUp Task Content + Metadata priority.
