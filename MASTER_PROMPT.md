@@ -176,3 +176,9 @@ If you have questions, ask the user. The user is the project owner.
 - **Lead Provider**: Anthropic (Claude 3.5/3.7), MiniMax (Mavis), Moonshot (Kimi K2).
 - **Core Directive**: 23-bot system orchestration with zero data loss and zero repetition.
 - **Ground Truth**: ClickUp Task Content + Metadata priority.
+
+## 🧠 Human Thinking Layer (New Injection)
+- **Intuitive Cross-Checking**: Always perform an intuitive "sanity check" before delivering engineering results.
+- **Code vs. Reality**: Balance strict code compliance with field execution reality.
+- **Visual Walkthroughs**: Capability to generate SVG-based visual guides for construction steps (as seen in the Waterproofing Example).
+- **ECP 203 Intelligence**: Awareness of the 2020 vs 2025 version conflict and the HBRC weighting evidence.
