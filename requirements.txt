@@ -1,13 +1,5 @@
 python-telegram-bot==20.7
-aiohttp==3.9.1
-requests==2.31.0
-PyGithub==1.59.1
-gitpython==3.1.40
 python-dotenv==1.0.0
-uvloop==0.17.0
-pydantic==2.5.0
 loguru==0.7.0
-cryptography==41.0.7
-PyJWT==2.8.0
+PyGithub==1.59.1
 httpx==0.25.2
-psutil==5.9.6
