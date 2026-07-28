@@ -105,6 +105,13 @@ class LoggingConfig:
 
 
 @dataclass
+class TermuxConfig:
+    """Termux configuration"""
+    enabled: bool = True
+    adb_host: str = "localhost"
+    adb_port: int = 5555
+
+@dataclass
 class OrcaConfig:
     """Main ORCA configuration"""
     name: str = "ORCA"
@@ -117,6 +124,8 @@ class OrcaConfig:
     skills: SkillsConfig = field(default_factory=SkillsConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    termux: TermuxConfig = field(default_factory=TermuxConfig)
+    universal_api_key: str = ""
     
     def __post_init__(self):
         """Initialize default platform configs if not provided"""
@@ -177,6 +186,9 @@ class OrcaConfig:
         
         config.environment = os.getenv("ORCA_ENV", "production")
         config.debug = os.getenv("ORCA_DEBUG", "false").lower() == "true"
+        
+        # Load Universal API Key if exists
+        config.universal_api_key = os.getenv("ORCA_UNIVERSAL_API_KEY", "")
         
         return config
 
