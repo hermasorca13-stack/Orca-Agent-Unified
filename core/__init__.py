@@ -1,23 +1,4 @@
-"""
-ORCA Agent - Core Package
-"""
+"""Orca core package - single source of truth for config and singletons."""
+from .config import config
 
-from .config import get_config, reload_config, OrcaConfig
-from .memory import MemorySystem, MemoryEntry
-from .memory_instance import get_memory
-from .skills import SkillRegistry, Skill, get_registry, SkillCategory
-from .agent import OrcaAgent
-
-__all__ = [
-    "get_config",
-    "reload_config",
-    "OrcaConfig",
-    "MemorySystem",
-    "MemoryEntry",
-    "get_memory",
-    "SkillRegistry",
-    "Skill",
-    "get_registry",
-    "SkillCategory",
-    "OrcaAgent"
-]
+__all__ = ["config"]
