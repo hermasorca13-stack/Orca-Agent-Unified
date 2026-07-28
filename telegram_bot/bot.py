@@ -5,7 +5,6 @@ Real Telegram bot using long-polling.
 - Commands: /start /status /skills /sync /device /exec /token /tap /swipe /text
 - All handlers share the same APIManager and config singletons.
 """
-import asyncio
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -32,6 +31,7 @@ class OrcaBot:
     def _register(self):
         h = self.app.add_handler
         h(CommandHandler("start", self.cmd_start))
+        h(CommandHandler("help", self.cmd_start))  # /help = /start
         h(CommandHandler("status", self.cmd_status))
         h(CommandHandler("skills", self.cmd_skills))
         h(CommandHandler("sync", self.cmd_sync))
@@ -46,18 +46,22 @@ class OrcaBot:
     # ---- Handlers ----
     async def cmd_start(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         user = u.effective_user
+        chat = u.effective_chat
         self.authorized.add(user.id)
         await u.message.reply_text(
             f"🐋 Orca Agent Online\n"
             f"User: {user.first_name} (id={user.id})\n"
+            f"Chat: {chat.id} ({chat.type})\n"
             f"Bot: @{config.TG_USERNAME}\n"
-            f"Repo: {config.GH_REPO}\n"
-            f"Tokens: {api.count()}\n\n"
+            f"Repo: {config.GH_REPO}@{config.GH_BRANCH}\n"
+            f"Tokens: {api.count()}\n"
+            f"Mode: {config.RUN_MODE}\n\n"
             f"Commands:\n"
             f"/status /skills /sync /device\n"
             f"/exec <cmd> /token\n"
             f"/tap <x> <y> /swipe <x1> <y1> <x2> <y2> /text <msg>"
         )
+        logger.info(f"START user={user.id} chat={chat.id}")
 
     async def cmd_status(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         await u.message.reply_text(
