@@ -42,6 +42,8 @@ class OrcaBot:
         h(CommandHandler("tap", self.cmd_tap))
         h(CommandHandler("swipe", self.cmd_swipe))
         h(CommandHandler("text", self.cmd_text))
+        h(CommandHandler("brain", self.cmd_brain))
+        h(CommandHandler("agent", self.cmd_agent))
         h(MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_text))
 
     # ---- Handlers ----
@@ -124,6 +126,50 @@ class OrcaBot:
         r = adb_text(" ".join(c.args))
         await u.message.reply_text(f"{'✅' if r['ok'] else '❌'} text typed")
 
+    async def cmd_brain(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """Show OrcaAgent brain status (LLM + memory + 25+ skills)."""
+        from core.agent_loader import bridge
+        if not bridge.ready:
+            ok = bridge.initialize()
+        skills = bridge.list_skills()
+        ready_emoji = "🟢" if bridge.ready else "🔴"
+        await u.message.reply_text(
+            f"{ready_emoji} Orca Agent Bridge\n"
+            f"ready: {bridge.ready}\n"
+            f"reason: {bridge.reason}\n"
+            f"skills: {len(skills)}\n"
+            f"sample: {', '.join(skills[:10])}{'…' if len(skills) > 10 else ''}"
+        )
+
+    async def cmd_agent(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """Force-route a prompt through OrcaAgent (LLM)."""
+        if not c.args:
+            await u.message.reply_text("Usage: /agent <prompt>")
+            return
+        from core.agent_loader import bridge
+        if not bridge.ready:
+            bridge.initialize()
+        if not bridge.ready:
+            await u.message.reply_text(
+                f"⚠️ Brain offline: {bridge.reason}\n"
+                f"Set LLM_API_KEY / OPENAI_API_KEY in .env to enable."
+            )
+            return
+        thinking = await u.message.reply_text("🧠 thinking…")
+        response = await bridge.process(
+            user_id=u.effective_user.id,
+            text=" ".join(c.args),
+            platform="telegram",
+            metadata={"chat_id": u.effective_chat.id},
+        )
+        try:
+            await thinking.delete()
+        except Exception:
+            pass
+        if response and len(response) > 4000:
+            response = response[:3997] + "…"
+        await u.message.reply_text(response or "⚠️ no response")
+
     async def cmd_verify(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """Engineering verification: check imports + duplicate filenames + config health."""
         from pathlib import Path
@@ -149,9 +195,41 @@ class OrcaBot:
         await u.message.reply_text("\n".join(lines))
 
     async def on_text(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """Free-form text. Routes through AgentBridge (LLM+memory+skills) when LLM is configured,
+        otherwise falls back to a plain echo with command hints."""
+        text = (u.message.text or "").strip()
+        user_id = u.effective_user.id if u.effective_user else 0
+        chat_id = u.effective_chat.id if u.effective_chat else 0
+        # Try the full OrcaAgent brain (LLM + memory + 25+ skills)
+        try:
+            from core.agent_loader import bridge
+            if not bridge.ready:
+                bridge.initialize()
+            if bridge.ready:
+                logger.info(f"Agent route | user={user_id} chat={chat_id} skills={len(bridge.list_skills())}")
+                thinking = await u.message.reply_text("🧠 Orca is thinking…")
+                response = await bridge.process(
+                    user_id=user_id,
+                    text=text,
+                    platform="telegram",
+                    metadata={"chat_id": chat_id, "username": u.effective_user.username if u.effective_user else None},
+                )
+                try:
+                    await thinking.delete()
+                except Exception:
+                    pass
+                if response and len(response) > 4000:
+                    response = response[:3997] + "…"
+                if response:
+                    await u.message.reply_text(response)
+                    return
+        except Exception as e:
+            logger.warning(f"Agent route unavailable, falling back: {e}")
+        # Fallback: echo + command hint
         await u.message.reply_text(
-            f"Received: {u.message.text[:200]}\n"
-            f"Use /status /skills /sync /exec /device /token /tap /swipe /text"
+            f"Received: {text[:200]}\n"
+            f"Use /status /skills /sync /exec /device /token /tap /swipe /text\n"
+            f"(Set LLM_API_KEY or OPENAI_API_KEY in .env to enable brain mode)"
         )
 
     def run(self):
