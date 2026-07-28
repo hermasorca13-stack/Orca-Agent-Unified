@@ -32,6 +32,7 @@ class OrcaBot:
         h = self.app.add_handler
         h(CommandHandler("start", self.cmd_start))
         h(CommandHandler("help", self.cmd_start))  # /help = /start
+        h(CommandHandler("verify", self.cmd_verify))
         h(CommandHandler("status", self.cmd_status))
         h(CommandHandler("skills", self.cmd_skills))
         h(CommandHandler("sync", self.cmd_sync))
@@ -122,6 +123,30 @@ class OrcaBot:
             return
         r = adb_text(" ".join(c.args))
         await u.message.reply_text(f"{'✅' if r['ok'] else '❌'} text typed")
+
+    async def cmd_verify(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """Engineering verification: check imports + duplicate filenames + config health."""
+        from pathlib import Path
+        root = Path(config.ROOT)
+        pkgs = ["core", "api_manager", "telegram_bot", "github_sync", "android_bridge", "skills", "src", "platforms"]
+        lines = ["🛡️ Engineering Verify"]
+        # __init__.py check
+        for pkg in pkgs:
+            init = root / pkg / "__init__.py"
+            lines.append(f"{'✅' if init.exists() else '❌'} {pkg}/__init__.py")
+        # duplicate check
+        seen = {}
+        for p in root.rglob("*.py"):
+            if "__pycache__" in str(p) or ".git" in str(p):
+                continue
+            seen.setdefault(p.name, []).append(str(p.relative_to(root)))
+        dups = [(n, l) for n, l in seen.items() if len(l) > 1 and n != "__init__.py"]
+        lines.append(f"{'✅ No duplicates' if not dups else f'⚠️ {len(dups)} dups: {dups[:3]}'}")
+        # config health
+        lines.append(f"{'✅' if config.TG_TOKEN else '❌'} TG_TOKEN")
+        lines.append(f"{'✅' if config.GH_TOKEN else '❌'} GH_TOKEN")
+        lines.append(f"{'✅' if config.ORCA_MASTER else '❌'} ORCA_MASTER")
+        await u.message.reply_text("\n".join(lines))
 
     async def on_text(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         await u.message.reply_text(
