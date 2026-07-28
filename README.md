@@ -1,39 +1,58 @@
-# 🐋 Orca Agent — Unified Production System
+# 🐋 Orca Agent — Unified Production
 
-**Real, working agent connecting Telegram + GitHub + Android (Termux/ADB).**
+Real, working agent: **Telegram + GitHub + Android bridge + Universal API** in one clean Python package. No duplicates, no Node.js leftovers, single source of truth.
 
-## Stack
-- **Telegram Bot:** `@HermesOrcaXBot` (id 8251930364)
-- **GitHub:** `hermasorca13/Orca-Agent-Unified` (master)
-- **Android bridge:** ADB + Termux API
-- **API:** Universal token system (full permissions `*`)
+## Structure
+```
+orca-agent/
+├── orca.py                     # entrypoint (bot|sync|status|tokens|doctor)
+├── requirements.txt
+├── .env / .env.example
+├── core/
+│   ├── __init__.py
+│   └── config.py               # single env loader
+├── api_manager/
+│   ├── __init__.py
+│   └── api_manager.py          # singleton universal token system
+├── telegram_bot/
+│   ├── __init__.py
+│   └── bot.py                  # long-polling bot
+├── github_sync/
+│   ├── __init__.py
+│   └── gh_sync.py              # GitHub Contents API push
+├── android_bridge/
+│   ├── __init__.py
+│   └── adb_controller.py       # ADB + Termux API (sync + async)
+└── skills/
+    ├── __init__.py
+    ├── orca_skills.py          # single registry, no dupes
+    └── shell_executor.py       # whitelisted shell
+```
+
+## Setup
+```bash
+pip install -r requirements.txt
+cp .env.example .env   # then fill in tokens
+```
 
 ## Run
 ```bash
-pip install -r requirements.txt
-python orca.py bot       # start Telegram bot (long-polling)
+python orca.py bot       # start Telegram bot
 python orca.py sync      # push to GitHub
 python orca.py status    # print system status
+python orca.py tokens    # list API tokens
 python orca.py doctor    # engineering checks
 ```
 
-## Files
-```
-orca-agent/
-├── orca.py                     # main entrypoint
-├── requirements.txt
-├── .env                        # real env (gitignored in production)
-├── core/config.py              # single source of env config
-├── api_manager/api_manager.py  # universal token mgmt
-├── telegram_bot/bot.py         # real bot (long-polling)
-├── github_sync/gh_sync.py      # GitHub Contents API push
-├── android_bridge/adb_controller.py  # ADB / Termux API
-└── skills/                     # plugin skills (no duplicates)
-    ├── shell_executor.py
-    └── orca_skills.py          # single registry
-```
+## Telegram Commands
+- `/start` / `/status` / `/skills` / `/sync` / `/device`
+- `/exec <cmd>` / `/token` (generate new)
+- `/tap <x> <y>` / `/swipe x1 y1 x2 y2 [ms]` / `/text <msg>`
 
-## Tokens
-- Bot: `8251930364:AAE2L39B4ltS_vihIePwWpwp0ZuFylngdWo`
-- Orca Master: `orca_live_QkZFMmUzOTBHeURKTzJSY1YwSlRINWV3T201N0otSlJkNEdhRjFhaUVINGtn`
-- GitHub: set `GITHUB_TOKEN` in `.env` to enable remote sync
+## Engineering Rules Applied
+- **Zero duplication**: each module has a single canonical implementation
+- **No Node.js leftovers**: removed all `*.js` and duplicate `telegram.py`/`api_manager.py` clones
+- **Singleton APIManager**: every caller shares the same token store
+- **Package `__init__.py`**: explicit re-exports, no implicit name collisions
+- **Config single-source**: `core/config.py` is the only env reader
+- **Doctor self-check**: detects duplicate filenames, oversized files, broken imports
