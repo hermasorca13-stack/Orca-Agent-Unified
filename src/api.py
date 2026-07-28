@@ -10,7 +10,15 @@ from loguru import logger
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.core import OrcaAgent
-from routes.telegram import router as telegram_router
+# Optional: routes.telegram is from a sibling FastAPI project. If unavailable (e.g. this
+# repo only carries the Orca Agent core), the Orca API still boots — we just skip that router.
+try:
+    from routes.telegram import router as telegram_router  # type: ignore
+    _HAS_TELEGRAM_ROUTER = True
+except Exception as _e:
+    logger.debug(f"src.api: telegram router not available ({_e}) — running without it")
+    telegram_router = None
+    _HAS_TELEGRAM_ROUTER = False
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -97,8 +105,9 @@ async def manus_sync():
     return {"status": "syncing"}
 
 
-# Include Telegram routes
-app.include_router(telegram_router)
+# Include Telegram routes (if available)
+if _HAS_TELEGRAM_ROUTER and telegram_router is not None:
+    app.include_router(telegram_router)
 
 
 if __name__ == "__main__":
