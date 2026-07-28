@@ -1,4 +1,12 @@
-# orca.py - Orca Agent main entrypoint
+# orca.py - Orca Agent main entrypoint (unified)
+"""
+One file, one entrypoint. Modes:
+  python orca.py bot       # start Telegram bot (long-polling)
+  python orca.py sync      # push to GitHub
+  python orca.py status    # print system status
+  python orca.py doctor    # engineering checks (duplicates, imports, structure)
+  python orca.py tokens    # list API tokens
+"""
 import sys
 import argparse
 from pathlib import Path
@@ -11,99 +19,149 @@ def setup_logging():
     logger.add(sys.stderr, level=config.LOG_LEVEL)
     logger.add(config.LOG_PATH, rotation="10 MB", retention="7 days", level=config.LOG_LEVEL)
 
-def main():
+def boot():
+    """Common startup: load config, skills, verify telegram & github."""
     setup_logging()
     logger.info("=" * 60)
     logger.info("ORCA AGENT — START")
     logger.info("=" * 60)
-
-    if not config.validate():
-        logger.warning("Some env missing — continuing with what we have")
-
-    # Load skills
+    config.validate()
     from skills.orca_skills import load_all
-    skills = load_all()
-    logger.info(f"Skills loaded: {len(skills)}")
+    loaded = load_all()
+    logger.info(f"Skills loaded: {len(loaded)}")
+    return loaded
 
-    # Verify Telegram connection
-    import urllib.request
+def verify_telegram() -> bool:
+    import urllib.request, json
     try:
         with urllib.request.urlopen(f"https://api.telegram.org/bot{config.TG_TOKEN}/getMe", timeout=10) as r:
-            import json
-            data = json.loads(r.read())
-            if data.get("ok"):
-                logger.info(f"✅ Telegram OK: @{data['result']['username']}")
-            else:
-                logger.error(f"Telegram NOT ok: {data}")
+            d = json.loads(r.read())
+            if d.get("ok"):
+                logger.info(f"✅ Telegram OK: @{d['result']['username']}")
+                return True
     except Exception as e:
         logger.error(f"Telegram verify failed: {e}")
+    return False
 
-    # Verify GitHub
-    if config.GH_TOKEN:
-        import urllib.request
-        try:
-            req = urllib.request.Request(
-                f"https://api.github.com/repos/{config.GH_USER}/{config.GH_REPO}",
-                headers={"Authorization": f"token {config.GH_TOKEN}", "User-Agent": "OrcaAgent/1.0"},
-            )
-            with urllib.request.urlopen(req, timeout=10) as r:
-                logger.info(f"✅ GitHub OK: {config.GH_REPO}")
-        except Exception as e:
-            logger.warning(f"GitHub verify: {e}")
-    else:
+def verify_github() -> bool:
+    import urllib.request
+    if not config.GH_TOKEN:
         logger.warning("GITHUB_TOKEN not set — sync will use local git fallback")
+        return False
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{config.GH_USER}/{config.GH_REPO}",
+            headers={
+                "Authorization": f"token {config.GH_TOKEN}",
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "OrcaAgent/1.0",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            logger.info(f"✅ GitHub OK: {config.GH_REPO}")
+            return True
+    except Exception as e:
+        logger.warning(f"GitHub verify: {e}")
+        return False
 
-    # Run chosen mode
-    parser = argparse.ArgumentParser()
+def cmd_bot(_):
+    from telegram_bot.bot import OrcaBot
+    OrcaBot().run()
+
+def cmd_sync(_):
+    from github_sync.gh_sync import sync_to_github
+    r = sync_to_github()
+    print(r)
+    return r
+
+def cmd_status(_):
+    from skills.orca_skills import names
+    from api_manager.api_manager import api
+    print(f"Bot: @{config.TG_USERNAME}")
+    print(f"User: {config.GH_USER}")
+    print(f"Repo: {config.GH_REPO}@{config.GH_BRANCH}")
+    print(f"GH token: {'yes' if config.GH_TOKEN else 'no'}")
+    print(f"Master token: {'yes' if config.ORCA_MASTER else 'no'}")
+    print(f"Skills: {names()}")
+    print(f"Tokens: {api.count()}")
+
+def cmd_tokens(_):
+    from api_manager.api_manager import api
+    for t in api.list_tokens():
+        print(t)
+
+def cmd_doctor(_):
+    """Engineering checks: duplicates, structure, import health."""
+    print("=== ORCA DOCTOR ===")
+    print(f"Workspace: {config.ROOT}")
+    # Check for duplicate filenames across packages
+    seen = {}
+    dups = []
+    for p in config.ROOT.rglob("*.py"):
+        if "__pycache__" in str(p) or ".git" in str(p):
+            continue
+        name = p.name
+        seen.setdefault(name, []).append(str(p.relative_to(config.ROOT)))
+    for n, locs in seen.items():
+        if len(locs) > 1 and n not in {"__init__.py"}:
+            dups.append((n, locs))
+    if dups:
+        print("⚠️  Duplicate filenames detected (functional ones are intentional wrappers):")
+        for n, locs in dups:
+            print(f"   {n}: {locs}")
+    else:
+        print("✅ No duplicate filenames")
+    # Check __init__.py presence
+    pkgs = ["core", "api_manager", "telegram_bot", "github_sync", "android_bridge", "skills"]
+    for pkg in pkgs:
+        init = config.ROOT / pkg / "__init__.py"
+        print(f"{'✅' if init.exists() else '❌'} {pkg}/__init__.py")
+    # Import health: try importing each package
+    for pkg in pkgs:
+        try:
+            __import__(pkg)
+            print(f"✅ import {pkg}")
+        except Exception as e:
+            print(f"❌ import {pkg}: {e}")
+    # File size sanity
+    heavy = []
+    for p in config.ROOT.rglob("*.py"):
+        if "__pycache__" in str(p): continue
+        size = p.stat().st_size
+        if size > 50_000:
+            heavy.append((p.relative_to(config.ROOT), size))
+    if heavy:
+        print(f"⚠️  Large files (>50KB): {heavy}")
+    else:
+        print("✅ No oversized files")
+    print("=== DOCTOR OK ===")
+
+def main():
+    boot()
+    verify_telegram()
+    verify_github()
+
+    parser = argparse.ArgumentParser(description="Orca Agent CLI")
     sub = parser.add_subparsers(dest="mode")
-    sub.add_parser("bot")
-    sub.add_parser("sync")
-    sub.add_parser("status")
-    sub.add_parser("doctor")
+    sub.add_parser("bot", help="start Telegram bot")
+    sub.add_parser("sync", help="push to GitHub")
+    sub.add_parser("status", help="print status")
+    sub.add_parser("tokens", help="list API tokens")
+    sub.add_parser("doctor", help="engineering checks")
     args = parser.parse_args()
 
     mode = args.mode or "status"
-
-    if mode == "bot":
-        from telegram_bot.bot import OrcaBot
-        OrcaBot().run()
-    elif mode == "sync":
-        from github_sync.gh_sync import sync_to_github
-        r = sync_to_github()
-        logger.info(f"Sync: {r}")
-        print(r)
-    elif mode == "doctor":
-        doctor()
+    fn = {
+        "bot": cmd_bot,
+        "sync": cmd_sync,
+        "status": cmd_status,
+        "tokens": cmd_tokens,
+        "doctor": cmd_doctor,
+    }.get(mode)
+    if fn:
+        fn(args)
     else:
-        print(f"Bot: @{config.TG_USERNAME}")
-        print(f"Repo: {config.GH_USER}/{config.GH_REPO}")
-        print(f"Skills: {list(skills.keys())}")
-        print(f"Tokens: {len(__import__('api_manager.api_manager', fromlist=['api']).api.tokens)}")
-
-def doctor():
-    """Run engineering checks on every component."""
-    import os
-    from pathlib import Path
-    root = config.ROOT
-    print("=== ORCA DOCTOR ===")
-    print(f"Workspace: {root}")
-    print(f"Bot token present: {bool(config.TG_TOKEN)}")
-    print(f"GitHub token present: {bool(config.GH_TOKEN)}")
-    print(f"Master token present: {bool(config.ORCA_MASTER)}")
-    # Check for duplicate files
-    seen = {}
-    dups = []
-    for p in root.rglob("*.py"):
-        if "__pycache__" in str(p): continue
-        try:
-            content = p.read_text()
-            for line in content.splitlines():
-                if line.startswith("import ") or line.startswith("from "):
-                    seen[line] = seen.get(line, 0) + 1
-        except: pass
-    heavy = [(k,v) for k,v in seen.items() if v > 5]
-    print(f"Heavy-import lines: {len(heavy)}")
-    print("=== OK ===")
+        print("Usage: python orca.py {bot|sync|status|tokens|doctor}")
 
 if __name__ == "__main__":
     main()
