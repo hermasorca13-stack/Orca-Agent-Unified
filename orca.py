@@ -29,6 +29,15 @@ def boot():
     from skills.orca_skills import load_all
     loaded = load_all()
     logger.info(f"Skills loaded: {len(loaded)}")
+    # Try to bring the OrcaAgent (LLM + memory + 25+ skills) online (non-fatal if no LLM key)
+    try:
+        from core.agent_loader import bridge
+        if bridge.initialize():
+            logger.info(f"Agent skills registered: {len(bridge.list_skills())}")
+        else:
+            logger.info(f"Agent bridge idle: {bridge.reason}")
+    except Exception as e:
+        logger.warning(f"Agent bridge boot skipped: {e}")
     return loaded
 
 def verify_telegram() -> bool:
@@ -91,7 +100,7 @@ def cmd_tokens(_):
         print(t)
 
 def cmd_doctor(_):
-    """Engineering checks: duplicates, structure, import health."""
+    """Engineering checks: duplicates, structure, import health, agent bridge."""
     print("=== ORCA DOCTOR ===")
     print(f"Workspace: {config.ROOT}")
     # Check for duplicate filenames across packages
@@ -112,17 +121,35 @@ def cmd_doctor(_):
     else:
         print("✅ No duplicate filenames")
     # Check __init__.py presence
-    pkgs = ["core", "api_manager", "telegram_bot", "github_sync", "android_bridge", "skills"]
+    pkgs = ["core", "api_manager", "telegram_bot", "github_sync", "android_bridge", "skills", "src", "platforms"]
     for pkg in pkgs:
         init = config.ROOT / pkg / "__init__.py"
-        print(f"{'✅' if init.exists() else '❌'} {pkg}/__init__.py")
+        if not init.exists() and pkg in {"core", "api_manager", "telegram_bot", "github_sync", "android_bridge", "skills"}:
+            print(f"❌ {pkg}/__init__.py MISSING")
+        else:
+            print(f"{'✅' if init.exists() else '— '} {pkg}/__init__.py")
     # Import health: try importing each package
-    for pkg in pkgs:
+    for pkg in ["core", "api_manager", "telegram_bot", "github_sync", "android_bridge", "skills"]:
         try:
             __import__(pkg)
             print(f"✅ import {pkg}")
         except Exception as e:
             print(f"❌ import {pkg}: {e}")
+    # Agent bridge diagnostic
+    try:
+        from core.agent_loader import bridge
+        bridge.initialize()
+        print(f"{'🟢' if bridge.ready else '🔴'} AgentBridge ready={bridge.ready} skills={len(bridge.list_skills())} reason={bridge.reason}")
+    except Exception as e:
+        print(f"❌ AgentBridge: {e}")
+    # Memory diagnostic
+    try:
+        from core.memory_instance import get_memory
+        mem = get_memory()
+        stats = mem.get_stats() if hasattr(mem, "get_stats") else {}
+        print(f"✅ MemorySystem db={getattr(mem, 'db_path', '?')} stats={stats}")
+    except Exception as e:
+        print(f"❌ MemorySystem: {e}")
     # File size sanity
     heavy = []
     for p in config.ROOT.rglob("*.py"):
