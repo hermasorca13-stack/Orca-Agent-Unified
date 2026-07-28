@@ -54,6 +54,61 @@ def _collect(root: Path) -> dict[str, str]:
             logger.warning(f"skip {rel}: {e}")
     return out
 
+def get_repo_info() -> dict:
+    """Quick read-only check: is the configured repo accessible?
+    Returns {ok, full_name, default_branch, size_kb, updated_at, private} or {ok: False, ...}."""
+    token = config.GH_TOKEN
+    if not token:
+        return {"ok": False, "msg": "GITHUB_TOKEN not set"}
+    code, info = _req(f"/repos/{config.GH_USER}/{config.GH_REPO}", token=token)
+    if code != 200:
+        return {"ok": False, "code": code, "msg": info.get("message", "unknown")}
+    return {
+        "ok": True,
+        "full_name": info.get("full_name"),
+        "default_branch": info.get("default_branch"),
+        "size_kb": info.get("size"),
+        "updated_at": info.get("updated_at"),
+        "private": info.get("private"),
+        "stars": info.get("stargazers_count", 0),
+    }
+
+def get_file_sha(path: str) -> str | None:
+    """Get current sha of a file on the configured branch (needed to update it)."""
+    token = config.GH_TOKEN
+    if not token:
+        return None
+    code, info = _req(
+        f"/repos/{config.GH_USER}/{config.GH_REPO}/contents/{path}?ref={config.GH_BRANCH}",
+        token=token,
+    )
+    if code == 200:
+        return info.get("sha")
+    return None
+
+def push_single_file(path: str, content_b64: str, message: str = None) -> dict:
+    """Push one file to GitHub (handles sha for updates). Returns {ok, sha, url, msg}."""
+    token = config.GH_TOKEN
+    if not token:
+        return {"ok": False, "msg": "GITHUB_TOKEN not set"}
+    msg = message or f"update: {path}"
+    body = {"message": msg, "content": content_b64, "branch": config.GH_BRANCH}
+    sha = get_file_sha(path)
+    if sha:
+        body["sha"] = sha
+    code, info = _req(
+        f"/repos/{config.GH_USER}/{config.GH_REPO}/contents/{path}",
+        method="PUT", body=body, token=token,
+    )
+    if code in (200, 201):
+        return {
+            "ok": True,
+            "sha": info.get("commit", {}).get("sha"),
+            "url": info.get("content", {}).get("html_url"),
+            "msg": f"pushed {path}",
+        }
+    return {"ok": False, "code": code, "msg": info.get("message", "unknown")}
+
 def sync_to_github() -> dict:
     root = config.ROOT
     token = config.GH_TOKEN
