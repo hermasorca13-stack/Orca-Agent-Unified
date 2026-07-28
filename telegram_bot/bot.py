@@ -196,11 +196,29 @@ class OrcaBot:
 
     async def on_text(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """Free-form text. Routes through AgentBridge (LLM+memory+skills) when LLM is configured,
-        otherwise falls back to a plain echo with command hints."""
+        otherwise falls back to a plain echo with command hints. Persists every exchange to MemorySystem."""
         text = (u.message.text or "").strip()
         user_id = u.effective_user.id if u.effective_user else 0
         chat_id = u.effective_chat.id if u.effective_chat else 0
+        username = u.effective_user.username if u.effective_user else None
+        session_id = f"tg:{chat_id}"
+        # Persist the incoming user message (so /agent later has history context)
+        try:
+            from core.memory_instance import get_memory
+            mem = get_memory()
+            mem.create_session(session_id=session_id, user_id=user_id, platform="telegram")
+            mem.add_memory(
+                user_id=user_id,
+                session_id=session_id,
+                role="user",
+                content=text[:4000],
+                metadata={"chat_id": chat_id, "username": username, "platform": "telegram"},
+                importance=0.4,
+            )
+        except Exception as me:
+            logger.debug(f"memory save (user) skipped: {me}")
         # Try the full OrcaAgent brain (LLM + memory + 25+ skills)
+        response = None
         try:
             from core.agent_loader import bridge
             if not bridge.ready:
@@ -212,7 +230,7 @@ class OrcaBot:
                     user_id=user_id,
                     text=text,
                     platform="telegram",
-                    metadata={"chat_id": chat_id, "username": u.effective_user.username if u.effective_user else None},
+                    metadata={"chat_id": chat_id, "username": username, "session_id": session_id},
                 )
                 try:
                     await thinking.delete()
@@ -220,17 +238,41 @@ class OrcaBot:
                     pass
                 if response and len(response) > 4000:
                     response = response[:3997] + "…"
-                if response:
-                    await u.message.reply_text(response)
-                    return
         except Exception as e:
             logger.warning(f"Agent route unavailable, falling back: {e}")
+        # Persist the assistant response (success or fallback) for future context recall
+        if response:
+            try:
+                mem.add_memory(
+                    user_id=user_id,
+                    session_id=session_id,
+                    role="assistant",
+                    content=response[:4000],
+                    metadata={"chat_id": chat_id, "platform": "telegram", "source": "agent"},
+                    importance=0.6,
+                )
+            except Exception as me:
+                logger.debug(f"memory save (assistant) skipped: {me}")
+            await u.message.reply_text(response)
+            return
         # Fallback: echo + command hint
-        await u.message.reply_text(
+        fallback = (
             f"Received: {text[:200]}\n"
             f"Use /status /skills /sync /exec /device /token /tap /swipe /text\n"
             f"(Set LLM_API_KEY or OPENAI_API_KEY in .env to enable brain mode)"
         )
+        try:
+            mem.add_memory(
+                user_id=user_id,
+                session_id=session_id,
+                role="assistant",
+                content=fallback[:4000],
+                metadata={"chat_id": chat_id, "platform": "telegram", "source": "fallback"},
+                importance=0.3,
+            )
+        except Exception as me:
+            logger.debug(f"memory save (fallback) skipped: {me}")
+        await u.message.reply_text(fallback)
 
     def run(self):
         if not self.app:
