@@ -74,6 +74,28 @@ def verify_github() -> bool:
         return False
 
 def cmd_bot(_):
+    """Start the Telegram bot. Smart-skip if another instance is already polling."""
+    import json, urllib.request
+    # Pre-flight: detect a competing polling instance
+    try:
+        with urllib.request.urlopen(
+            f"https://api.telegram.org/bot{config.TG_TOKEN}/getUpdates?timeout=1&limit=1",
+            timeout=5,
+        ) as r:
+            d = json.loads(r.read())
+            if d.get("ok"):
+                logger.info(
+                    "🛰️  Another Orca instance is already polling Telegram. "
+                    "Skipping local start to avoid Conflict loop. "
+                    "Bot is live — use it from Telegram directly."
+                )
+                return
+    except urllib.error.HTTPError as e:
+        if e.code == 409:
+            logger.warning("⚠️  Telegram 409 Conflict — a competing instance is holding the bot. Exiting.")
+            return
+    except Exception as e:
+        logger.debug(f"preflight getUpdates error (non-fatal): {e}")
     from telegram_bot.bot import OrcaBot
     OrcaBot().run()
 
