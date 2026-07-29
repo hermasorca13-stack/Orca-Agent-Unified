@@ -25,3 +25,6 @@ edge-tts>=6.1.10   # used by skills/tts_skill.py for free TTS (no key)
 # Note: weather, translation, wikipedia, news, fx, arxiv are all
 # stdlib-only (urllib + xml + json). arxiv is lazy-imported and
 # auto-installs on first use; not pinned to keep requirements minimal.
+# 2026-07-29 ADD: extra LLM providers + Google SDK for failover router
+google-generativeai>=0.3.0  # Gemini (used by core/llm_providers.py)
+# groq, mistral, ollama all use the openai SDK (already pinned above).

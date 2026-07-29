@@ -61,6 +61,14 @@ class OrcaBot:
         h(CommandHandler("fx", self.cmd_fx))
         h(CommandHandler("arxiv", self.cmd_arxiv))
         h(CommandHandler("health", self.cmd_health))
+        # --- ADD: diag, setup, cancel + FSM message router (lowest priority) ---
+        h(CommandHandler("diag", self.cmd_diag))
+        h(CommandHandler("setup", self.cmd_setup))
+        h(CommandHandler("cancel", self.cmd_cancel))
+        # FSM router: must come AFTER on_text to not block normal chat.
+        # Group 1 = lower priority; default group 0 runs commands first.
+        self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                            self.fsm_message_router), group=1)
         h(MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_text))
 
     # ---- Handlers ----
@@ -102,6 +110,10 @@ class OrcaBot:
                 BotCommand("fx", "Currency exchange (Frankfurter, no key)"),
                 BotCommand("arxiv", "Search arXiv papers"),
                 BotCommand("health", "DB / FS / Network probe"),
+                # 2026-07-29 ADD: diag + setup wizard + cancel FSM
+                BotCommand("diag", "Diagnostics (self-heal report)"),
+                BotCommand("setup", "Set LLM API key (wizard)"),
+                BotCommand("cancel", "Cancel active flow"),
             ])
         except Exception as e:
             logger.debug(f"set_my_commands skipped: {e}")
@@ -984,9 +996,112 @@ class OrcaBot:
         p = probe()
         await u.message.reply_text(format_for_telegram(p), parse_mode="MarkdownV2")
 
+    # --- ADD: /diag, /setup, /cancel, FSM message router, self-heal start ---
+    async def cmd_diag(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/diag — diagnostic dump (DB / FS / network / heartbeat)."""
+        from core.self_heal import SelfHeal
+        heal = SelfHeal(config.ROOT, config.MEMORY_DB_PATH, config.TG_TOKEN)
+        rep = heal.diag()
+        await u.message.reply_text(f"🩺 *Diagnostics*\n```\n{rep.format_telegram()}\n```",
+                                   parse_mode="Markdown")
+
+    async def cmd_setup(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/setup — guided wizard to set LLM API key via conversation FSM."""
+        from core.fsm import fsm, FlowKind
+        uid = u.effective_user.id
+        # Two-arg form: /setup <provider> <key>  -> direct set
+        args = c.args or []
+        if len(args) >= 2:
+            provider, key = args[0], args[1]
+            return await self._set_llm_key(u, provider, key)
+        if len(args) == 1:
+            # /setup <provider> -> wait for key
+            fsm.push(uid, FlowKind.SETUP_PROVIDER, provider=args[0].lower())
+            return await u.message.reply_text(
+                f"🔑 Send your `{args[0]}` API key as the next message.\n"
+                f"(or /cancel to abort)"
+            )
+        fsm.push(uid, FlowKind.SETUP_API_KEY)
+        await u.message.reply_text(
+            "🛠 *Setup wizard*\n"
+            "Send: `<provider> <key>`\n"
+            "Providers: `anthropic` `openai` `gemini` `groq` "
+            "`deepseek` `openrouter` `mistral`\n"
+            "Or /cancel to abort."
+        )
+
+    async def cmd_cancel(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/cancel — drop any active multi-step flow."""
+        from core.fsm import fsm
+        uid = u.effective_user.id
+        cancelled = fsm.cancel(uid)
+        await u.message.reply_text(
+            "✅ Cancelled." if cancelled else "ℹ️ No active flow to cancel."
+        )
+
+    async def _set_llm_key(self, u: Update, provider: str, key: str):
+        """Persist provider+key into .env (additive — does not delete other keys)."""
+        env_path = config.ROOT / ".env"
+        env_path.parent.mkdir(parents=True, exist_ok=True)
+        env = {}
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                if "=" in line and not line.strip().startswith("#"):
+                    k, v = line.split("=", 1)
+                    env[k.strip()] = v.strip().strip('"').strip("'")
+        env["LLM_PROVIDER"] = provider
+        env[f"{provider.upper()}_API_KEY"] = key
+        # keep legacy alias so the brain picks it up
+        env["LLM_API_KEY"] = key
+        env_path.write_text("\n".join(f"{k}={v}" for k, v in env.items()) + "\n")
+        await u.message.reply_text(
+            f"✅ Saved `{provider}` key. Restart the bot to take effect "
+            f"(/update on a live instance will pull + restart automatically)."
+        )
+
+    async def fsm_message_router(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """Catch non-command messages and route them into an active FSM flow."""
+        from core.fsm import fsm
+        uid = u.effective_user.id
+        state = fsm.get(uid)
+        if not state or not u.message or not u.message.text:
+            return  # no active flow -> ignore (let other handlers run)
+        text = u.message.text.strip()
+        if state.kind.value == "setup_api_key":
+            # expecting "<provider> <key>"
+            parts = text.split(maxsplit=1)
+            if len(parts) != 2:
+                await u.message.reply_text("⚠️ Format: `<provider> <key>`")
+                return
+            fsm.consume(uid)
+            await self._set_llm_key(u, parts[0].lower(), parts[1].strip())
+            return
+        if state.kind.value == "setup_provider":
+            fsm.consume(uid)
+            await self._set_llm_key(u, state.data.get("provider", "openai"), text)
+            return
+        # default: hand back to chat if active
+        return
+
+    def _start_self_heal(self):
+        """Start the self-heal watchdog. Called once during run()."""
+        from core.self_heal import SelfHeal
+        heal = SelfHeal(config.ROOT, config.MEMORY_DB_PATH, config.TG_TOKEN)
+        heal.start()
+        return heal
+
     def run(self):
         if not self.app:
             return
+        # --- ADD: heartbeat touch + self-heal start ---
+        try:
+            from core.self_heal import SelfHeal
+            self._heal = SelfHeal(config.ROOT, config.MEMORY_DB_PATH, config.TG_TOKEN)
+            self._heal.start()
+            logger.info("Self-heal watchdog started")
+        except Exception as e:
+            logger.warning(f"Self-heal start failed: {e}")
+        # ----------------------------------------------
         logger.info("Starting long-polling...")
         self.app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 

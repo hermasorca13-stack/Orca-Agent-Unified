@@ -103,7 +103,20 @@ You have access to many skills you can invoke by name. Use them when appropriate
                 base_url=self.config.llm.base_url or "https://openrouter.ai/api/v1"
             )
             logger.info(f"LLM initialized: OpenRouter ({self.config.llm.model})")
-        
+
+        # --- ADD: new providers (gemini, groq, mistral, ollama) ---
+        # Wired through core/llm_providers.py for a single source of truth.
+        elif provider.value in ("gemini", "groq", "mistral", "ollama"):
+            from .llm_providers import get_llm_client
+            api_key = (
+                self.config.llm.api_key
+                or os.getenv(f"{provider.value.upper()}_API_KEY", "")
+            )
+            base_url = self.config.llm.base_url
+            self._llm_client = get_llm_client(provider.value, api_key.strip(), base_url)
+            if self._llm_client:
+                logger.info(f"LLM initialized: {provider.value} ({self.config.llm.model})")
+
         else:
             logger.warning("No LLM client initialized - check API keys")
     
@@ -223,7 +236,27 @@ You have access to many skills you can invoke by name. Use them when appropriate
                 "⚠️ LLM not configured. Please set OPENAI_API_KEY, ANTHROPIC_API_KEY, or DEEPSEEK_API_KEY.",
                 None
             )
-        
+
+        # --- ADD: auto-failover when LLM_FAILOVER=1 ---
+        # Tries providers in LLM_FAILOVER_LIST order; falls back on any error.
+        # Returns first success. This wraps (not replaces) the provider-specific
+        # logic below, so the existing code path is untouched.
+        if os.getenv("LLM_FAILOVER", "0") == "1":
+            try:
+                from .llm_providers import build_default_router
+                router = build_default_router()
+                result = await router.complete(
+                    messages,
+                    max_tokens=self.config.llm.max_tokens,
+                )
+                prefix = f"🧠 {result.provider}/{result.model}"
+                if result.used_fallback:
+                    prefix += " (fallback)"
+                return f"{prefix}\n\n{result.text}", None
+            except Exception as e:
+                logger.warning(f"LLM_FAILOVER path failed, falling back to single provider: {e}")
+                # fall through to provider-specific code below
+
         provider = self.config.llm.provider
         
         if provider.value in ["openai", "deepseek", "openrouter"]:
