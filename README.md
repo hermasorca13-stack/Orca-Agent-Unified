@@ -26,7 +26,12 @@ orca-agent/
 └── skills/
     ├── __init__.py
     ├── orca_skills.py          # single registry, no dupes
-    └── shell_executor.py       # whitelisted shell
+    ├── shell_executor.py       # whitelisted shell
+    ├── github_skill.py         # PyGithub (7.7k+ ⭐) — repos, issues, PRs, releases, gists
+    ├── crypto_skill.py         # pycoingecko (CoinGecko free API) — prices, markets, trending
+    ├── stocks_skill.py         # yfinance (13k+ ⭐) — quotes, history, financials, options
+    ├── qr_skill.py             # qrcode[pil] (4.7k+ ⭐) — PNG/SVG/ASCII, 6 styles
+    └── url_shortener_skill.py  # pyshorteners (600+ ⭐) — 16+ providers
 ```
 
 ## Setup
@@ -45,9 +50,21 @@ python orca.py doctor    # engineering checks
 ```
 
 ## Telegram Commands
-- `/start` / `/status` / `/skills` / `/sync` / `/device`
-- `/exec <cmd>` / `/token` (generate new)
-- `/tap <x> <y>` / `/swipe x1 y1 x2 y2 [ms]` / `/text <msg>`
+- **Core**: `/start` / `/status` / `/skills` / `/sync` / `/device`
+- **Shell**: `/exec <cmd>` / `/token` (generate new)
+- **Android**: `/tap <x> <y>` / `/swipe x1 y1 x2 y2 [ms]` / `/text <msg>`
+- **Brain**: `/brain` (LLM+memory status) / `/agent <prompt>` (route through LLM)
+- **5 Library-backed Skills**:
+  - `/gh` — GitHub (PyGithub: repos, issues, PRs, releases, branches, files, search, gists)
+    - `/gh repo`, `/gh repos`, `/gh issues`, `/gh prs`, `/gh releases`, `/gh branches`, `/gh search <q>`, `/gh file <path>`, `/gh gist <desc>|<content>`
+  - `/crypto` — Crypto (pycoingecko: prices, markets, trending, history)
+    - `/crypto price`, `/crypto coin`, `/crypto markets`, `/crypto trending`, `/crypto global`, `/crypto search`, `/crypto history`
+  - `/stock` — Stocks (yfinance: quotes, history, news, analyst targets, dividends)
+    - `/stock AAPL`, `/stock h AAPL 1mo`, `/stock news AAPL`, `/stock targets AAPL`, `/stock search`, `/stock div AAPL`
+  - `/qr` — QR codes (qrcode[pil]: PNG/SVG/ASCII, 6 styles, custom colors)
+    - `/qr <text>`, `/qr ascii <text>`, `/qr svg <text>`
+  - `/short` — URL shortener (pyshorteners: 16+ providers)
+    - `/short <url>`, `/short multi <url>`, `/short list`, `/short expand <url> <provider>`
 
 ## Engineering Rules Applied
 - **Zero duplication**: each module has a single canonical implementation
@@ -56,3 +73,4 @@ python orca.py doctor    # engineering checks
 - **Package `__init__.py`**: explicit re-exports, no implicit name collisions
 - **Config single-source**: `core/config.py` is the only env reader
 - **Doctor self-check**: detects duplicate filenames, oversized files, broken imports
+- **Library-first**: 5 skills import battle-tested libraries (PyGithub, yfinance, pycoingecko, qrcode, pyshorteners) — no raw API duplication
