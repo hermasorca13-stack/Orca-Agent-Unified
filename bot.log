@@ -1,151 +1,21 @@
-2026-07-28 17:44:17.479 | INFO     | __main__:boot:25 - ============================================================
-2026-07-28 17:44:17.479 | INFO     | __main__:boot:26 - ORCA AGENT — START
-2026-07-28 17:44:17.479 | INFO     | __main__:boot:27 - ============================================================
-2026-07-28 17:44:17.479 | INFO     | core.config:validate:79 - Config validated | Bot: @HermesOrcaXBot | Repo: Orca-Agent-Unified
-2026-07-28 17:44:17.485 | INFO     | skills.orca_skills:load_all:28 - Skill loaded: orca_skills
-2026-07-28 17:44:17.487 | INFO     | skills.orca_skills:load_all:28 - Skill loaded: shell_executor
-2026-07-28 17:44:17.487 | INFO     | __main__:boot:31 - Skills loaded: 2
-2026-07-28 17:44:17.516 | INFO     | core.agent_loader:initialize:65 - SkillRegistry loaded built-in skills: 30
-2026-07-28 17:44:17.522 | INFO     | src_extra_analysis_engine:__init__:6 - 📊 Comparative Analysis Engine Initializing...
-2026-07-28 17:44:18.054 | INFO     | core.agent_loader:initialize:92 - AgentBridge ready in rule-based mode
-2026-07-28 17:44:18.054 | INFO     | __main__:boot:36 - Agent skills registered: 30
-2026-07-28 17:44:18.373 | INFO     | __main__:verify_telegram:49 - ✅ Telegram OK: @HermesOrcaXBot
-2026-07-28 17:44:18.621 | INFO     | __main__:verify_github:70 - ✅ GitHub OK: Orca-Agent-Unified
-2026-07-28 17:44:18.897 | INFO     | telegram_bot.bot:__init__:29 - Bot built | @HermesOrcaXBot
-2026-07-28 17:44:18.897 | INFO     | telegram_bot.bot:run:280 - Starting long-polling...
-No error handlers are registered, logging exception.
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
-    await do_action()
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
-    action_cb_task.result()
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
-    updates = await self.bot.get_updates(
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_extbot.py", line 680, in get_updates
-    updates = await super().get_updates(
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 4767, in get_updates
-    await self._post(
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 712, in _post
-    return await self._do_post(
-           ^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_extbot.py", line 378, in _do_post
-    return await super()._do_post(
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 741, in _do_post
-    result = await request.post(
-             ^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/request/_baserequest.py", line 198, in post
-    result = await self._request_wrapper(
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
-    raise exception
-telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
-No error handlers are registered, logging exception.
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
-    await do_action()
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
-    action_cb_task.result()
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
-    updates = await self.bot.get_updates(
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_extbot.py", line 680, in get_updates
-    updates = await super().get_updates(
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 4767, in get_updates
-    await self._post(
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 712, in _post
-    return await self._do_post(
-           ^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_extbot.py", line 378, in _do_post
-    return await super()._do_post(
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 741, in _do_post
-    result = await request.post(
-             ^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/request/_baserequest.py", line 198, in post
-    result = await self._request_wrapper(
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
-    raise exception
-telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
-No error handlers are registered, logging exception.
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
-    await do_action()
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
-    action_cb_task.result()
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
-    updates = await self.bot.get_updates(
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_extbot.py", line 680, in get_updates
-    updates = await super().get_updates(
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 4767, in get_updates
-    await self._post(
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 712, in _post
-    return await self._do_post(
-           ^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_extbot.py", line 378, in _do_post
-    return await super()._do_post(
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 741, in _do_post
-    result = await request.post(
-             ^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/request/_baserequest.py", line 198, in post
-    result = await self._request_wrapper(
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
-    raise exception
-telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
-Error while calling `get_updates` one more time to mark all fetched updates. Suppressing error to ensure graceful shutdown. When polling for updates is restarted, updates may be fetched again. Please adjust timeouts via `ApplicationBuilder` or the parameter `get_updates_request` of `Bot`.
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_updater.py", line 400, in _get_updates_cleanup
-    await self.bot.get_updates(
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_extbot.py", line 680, in get_updates
-    updates = await super().get_updates(
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 4767, in get_updates
-    await self._post(
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 712, in _post
-    return await self._do_post(
-           ^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_extbot.py", line 378, in _do_post
-    return await super()._do_post(
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 741, in _do_post
-    result = await request.post(
-             ^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/request/_baserequest.py", line 198, in post
-    result = await self._request_wrapper(
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
-    raise exception
-telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
-erminated by other getUpdates request; make sure that only one bot instance is running
-Error while calling `get_updates` one more time to mark all fetched updates. Suppressing error to ensure graceful shutdown. When polling for updates is restarted, updates may be fetched again. Please adjust timeouts via `ApplicationBuilder` or the parameter `get_updates_request` of `Bot`.
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_updater.py", line 400, in _get_updates_cleanup
-    await self.bot.get_updates(
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_extbot.py", line 680, in get_updates
-    updates = await super().get_updates(
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 4767, in get_updates
-    await self._post(
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 712, in _post
-    return await self._do_post(
-           ^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/ext/_extbot.py", line 378, in _do_post
-    return await super()._do_post(
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/_bot.py", line 741, in _do_post
-    result = await request.post(
-             ^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/request/_baserequest.py", line 198, in post
-    result = await self._request_wrapper(
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
-    raise exception
-telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+2026-07-29 05:17:43.479 | INFO     | __main__:boot:25 - ============================================================
+2026-07-29 05:17:43.479 | INFO     | __main__:boot:26 - ORCA AGENT — START
+2026-07-29 05:17:43.479 | INFO     | __main__:boot:27 - ============================================================
+2026-07-29 05:17:43.479 | INFO     | core.config:validate:79 - Config validated | Bot: @HermesOrcaXBot | Repo: Orca-Agent-Unified
+2026-07-29 05:17:43.570 | INFO     | skills.orca_skills:load_all:28 - Skill loaded: crypto_skill
+2026-07-29 05:17:43.624 | INFO     | skills.orca_skills:load_all:28 - Skill loaded: github_skill
+2026-07-29 05:17:43.625 | INFO     | skills.orca_skills:load_all:28 - Skill loaded: orca_skills
+2026-07-29 05:17:43.645 | INFO     | skills.orca_skills:load_all:28 - Skill loaded: qr_skill
+2026-07-29 05:17:43.646 | INFO     | skills.orca_skills:load_all:28 - Skill loaded: shell_executor
+2026-07-29 05:17:43.979 | INFO     | skills.orca_skills:load_all:28 - Skill loaded: stocks_skill
+2026-07-29 05:17:43.981 | INFO     | skills.orca_skills:load_all:28 - Skill loaded: url_shortener_skill
+2026-07-29 05:17:43.981 | INFO     | __main__:boot:31 - Skills loaded: 7
+2026-07-29 05:17:43.995 | INFO     | core.agent_loader:initialize:65 - SkillRegistry loaded built-in skills: 30
+2026-07-29 05:17:44.000 | INFO     | src_extra_analysis_engine:__init__:6 - 📊 Comparative Analysis Engine Initializing...
+2026-07-29 05:17:44.253 | INFO     | src.core:__init__:10 - 🦅 Orca Agent Core - Rebuilding for Maximum Stability...
+2026-07-29 05:17:45.794 | INFO     | core.agent_loader:initialize:92 - AgentBridge ready in rule-based mode
+2026-07-29 05:17:45.795 | INFO     | __main__:boot:36 - Agent skills registered: 30
+2026-07-29 05:17:46.108 | INFO     | __main__:verify_telegram:49 - ✅ Telegram OK: @HermesOrcaXBot
+2026-07-29 05:17:46.305 | INFO     | __main__:verify_github:70 - ✅ GitHub OK: Orca-Agent-Unified
+2026-07-29 05:17:46.457 | INFO     | telegram_bot.bot:__init__:29 - Bot built | @HermesOrcaXBot
+2026-07-29 05:17:46.457 | INFO     | telegram_bot.bot:run:680 - Starting long-polling...

@@ -17,17 +17,46 @@ def _shortener() -> pyshorteners.Shortener:
 
 
 # ---------- public API ----------
-def shorten(url: str, provider: str = "isgd", **kwargs) -> Dict[str, Any]:
-    """Shorten a URL using the given provider (default: is.gd)."""
+# Provider fallback chain — ordered by reliability
+_PROVIDER_FALLBACK = ["tinyurl", "tly", "clckru", "isgd", "dagd", "qpsru"]
+
+
+def _try_providers(url: str, providers: list, **kwargs) -> Dict[str, Any]:
+    """Try providers in order; return first success."""
     s = _shortener()
-    method = getattr(s, provider, None)
-    if method is None:
-        return {"error": f"unknown provider '{provider}'"}
-    try:
-        result = method.short(url, **kwargs)
-        return {"provider": provider, "input": url, "short_url": result}
-    except (ShorteningErrorException, Exception) as e:
-        return {"error": str(e), "provider": provider, "input": url}
+    last_err = None
+    for p in providers:
+        method = getattr(s, p, None)
+        if method is None:
+            continue
+        try:
+            result = method.short(url, **kwargs)
+            return {"provider": p, "input": url, "short_url": result, "ok": True}
+        except Exception as e:
+            last_err = f"{p}: {str(e)[:120]}"
+            continue
+    return {"error": f"all providers failed | last: {last_err}", "input": url, "tried": providers, "ok": False}
+
+
+def shorten(url: str, provider: str = "tinyurl", **kwargs) -> Dict[str, Any]:
+    """Shorten a URL using the given provider (default: tinyurl — most reliable).
+    If `provider` fails, automatically falls back through the reliability chain."""
+    # Try requested first
+    if provider:
+        s = _shortener()
+        method = getattr(s, provider, None)
+        if method is not None:
+            try:
+                result = method.short(url, **kwargs)
+                return {"provider": provider, "input": url, "short_url": result, "ok": True}
+            except Exception as e:
+                # Fall back through chain (excluding the one we just tried)
+                fallback = [p for p in _PROVIDER_FALLBACK if p != provider]
+                chained = [provider] + fallback  # remember the original
+                return _try_providers(url, chained, **kwargs)
+        else:
+            return {"error": f"unknown provider '{provider}'"}
+    return _try_providers(url, _PROVIDER_FALLBACK, **kwargs)
 
 
 def expand(url: str, provider: str = "isgd", **kwargs) -> Dict[str, Any]:
