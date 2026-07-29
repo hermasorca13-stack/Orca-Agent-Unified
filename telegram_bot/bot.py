@@ -635,7 +635,7 @@ class OrcaBot:
                 await u.message.reply_text(f"🔓 Expanded: {r.get('expanded_url', r.get('error'))}")
             else:
                 url = args[0]
-                prov = args[1] if len(args) > 1 else "isgd"
+                prov = args[1] if len(args) > 1 else "tinyurl"
                 r = url_shortener_skill.shorten(url, provider=prov)
                 if "error" in r:
                     await u.message.reply_text(f"❌ {r['error']}")
@@ -647,7 +647,7 @@ class OrcaBot:
 
     def _short_help(self) -> str:
         return ("🔗 URL Shortener:\n"
-                "/short <url> [provider] — shorten (default: isgd)\n"
+                "/short <url> [provider] — shorten (default: tinyurl)\n"
                 "/short multi <url> — multi-provider\n"
                 "/short list — list providers\n"
                 "/short expand <url> <provider> — expand")

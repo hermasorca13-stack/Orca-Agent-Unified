@@ -28,10 +28,12 @@ class Config:
 
     # GitHub
     GH_USER = os.getenv("GITHUB_USERNAME", "hermasorca13").strip()
+    GH_ORG = os.getenv("GITHUB_ORG", "hermasorca13-stack").strip()  # ADD: org for repos
     GH_EMAIL = os.getenv("GITHUB_EMAIL", "hermasorca13@gmail.com").strip()
     GH_REPO = os.getenv("GITHUB_REPO", "Orca-Agent-Unified").strip()
     GH_BRANCH = os.getenv("GITHUB_BRANCH", "master").strip()
     GH_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
+    GH_FULL_NAME = f"{GH_ORG}/{GH_REPO}" if GH_ORG else f"{GH_USER}/{GH_REPO}"  # ADD
 
     # Orca Master
     ORCA_MASTER = os.getenv("ORCA_MASTER_TOKEN", "").strip()

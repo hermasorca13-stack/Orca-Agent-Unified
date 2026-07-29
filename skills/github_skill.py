@@ -27,7 +27,7 @@ def _gh() -> Github:
 
 # ---------- repo ----------
 def get_repo(full_name: Optional[str] = None) -> Dict[str, Any]:
-    full_name = full_name or f"{config.GH_USER}/{config.GH_REPO}"
+    full_name = full_name or config.GH_FULL_NAME
     r = _gh().get_repo(full_name)
     return {
         "name": r.full_name,
@@ -75,7 +75,7 @@ def search_repos(query: str, limit: int = 10) -> List[Dict[str, Any]]:
 
 # ---------- issues ----------
 def list_issues(state: str = "open", limit: int = 20, full_name: Optional[str] = None) -> List[Dict[str, Any]]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     return [{
         "number": i.number,
         "title": i.title,
@@ -89,20 +89,20 @@ def list_issues(state: str = "open", limit: int = 20, full_name: Optional[str] =
 
 def create_issue(title: str, body: str = "", labels: Optional[List[str]] = None,
                  full_name: Optional[str] = None) -> Dict[str, Any]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     i = r.create_issue(title=title, body=body, labels=labels or [])
     return {"number": i.number, "url": i.html_url, "title": i.title}
 
 
 def close_issue(number: int, full_name: Optional[str] = None) -> Dict[str, Any]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     i = r.get_issue(number)
     i.edit(state="closed")
     return {"number": i.number, "state": i.state}
 
 
 def comment_issue(number: int, body: str, full_name: Optional[str] = None) -> Dict[str, Any]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     i = r.get_issue(number)
     c = i.create_comment(body)
     return {"id": c.id, "url": c.html_url}
@@ -110,7 +110,7 @@ def comment_issue(number: int, body: str, full_name: Optional[str] = None) -> Di
 
 # ---------- pull requests ----------
 def list_prs(state: str = "open", limit: int = 20, full_name: Optional[str] = None) -> List[Dict[str, Any]]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     return [{
         "number": p.number,
         "title": p.title,
@@ -123,14 +123,14 @@ def list_prs(state: str = "open", limit: int = 20, full_name: Optional[str] = No
 
 def create_pr(title: str, head: str, base: str = "master", body: str = "",
               full_name: Optional[str] = None) -> Dict[str, Any]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     p = r.create_pull(title=title, body=body, head=head, base=base)
     return {"number": p.number, "url": p.html_url, "title": p.title}
 
 
 # ---------- releases ----------
 def list_releases(limit: int = 10, full_name: Optional[str] = None) -> List[Dict[str, Any]]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     out = []
     for rel in r.get_releases():
         if len(out) >= limit:
@@ -147,19 +147,19 @@ def list_releases(limit: int = 10, full_name: Optional[str] = None) -> List[Dict
 
 def create_release(tag: str, name: str, body: str = "", draft: bool = False,
                    full_name: Optional[str] = None) -> Dict[str, Any]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     rel = r.create_git_release(tag=tag, name=name, message=body, draft=draft)
     return {"tag": rel.tag_name, "url": rel.html_url}
 
 
 # ---------- branches / tags ----------
 def list_branches(full_name: Optional[str] = None) -> List[Dict[str, Any]]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     return [{"name": b.name, "protected": b.protected} for b in r.get_branches()]
 
 
 def create_branch(branch: str, from_branch: str = "master", full_name: Optional[str] = None) -> Dict[str, Any]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     src = r.get_branch(from_branch)
     r.create_git_ref(ref=f"refs/heads/{branch}", sha=src.commit.sha)
     return {"branch": branch, "from": from_branch}
@@ -167,7 +167,7 @@ def create_branch(branch: str, from_branch: str = "master", full_name: Optional[
 
 # ---------- contents ----------
 def get_file(path: str, ref: str = "master", full_name: Optional[str] = None) -> Dict[str, Any]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     try:
         c = r.get_contents(path, ref=ref)
         if isinstance(c, list):
@@ -179,7 +179,7 @@ def get_file(path: str, ref: str = "master", full_name: Optional[str] = None) ->
 
 def create_or_update_file(path: str, content: str, message: str, branch: str = "master",
                           full_name: Optional[str] = None) -> Dict[str, Any]:
-    r = _gh().get_repo(full_name or f"{config.GH_USER}/{config.GH_REPO}")
+    r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     sha = None
     try:
         existing = r.get_contents(path, ref=branch)
