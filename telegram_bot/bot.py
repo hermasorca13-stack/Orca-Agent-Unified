@@ -57,6 +57,32 @@ class OrcaBot:
         user = u.effective_user
         chat = u.effective_chat
         self.authorized.add(user.id)
+        # Register bot commands with Telegram so the menu shows everything
+        try:
+            from telegram import BotCommand
+            await self.app.bot.set_my_commands([
+                BotCommand("start", "Start Orca Agent"),
+                BotCommand("status", "System status"),
+                BotCommand("skills", "List available skills"),
+                BotCommand("sync", "Push to GitHub"),
+                BotCommand("device", "Android device info"),
+                BotCommand("exec", "Execute shell command"),
+                BotCommand("token", "Generate API token"),
+                BotCommand("tap", "Tap screen coords"),
+                BotCommand("swipe", "Swipe gesture"),
+                BotCommand("text", "Type text via ADB"),
+                BotCommand("brain", "Check AgentBridge status"),
+                BotCommand("agent", "Query OrcaAgent brain"),
+                BotCommand("verify", "Engineering validation"),
+                # New 5 library-backed skill commands
+                BotCommand("gh", "GitHub ops (repo/issue/pr/release)"),
+                BotCommand("crypto", "Crypto markets (price/trending/global)"),
+                BotCommand("stock", "Stock quote (yfinance)"),
+                BotCommand("qr", "Generate QR code (PNG/SVG)"),
+                BotCommand("short", "Shorten URL (16+ providers)"),
+            ])
+        except Exception as e:
+            logger.debug(f"set_my_commands skipped: {e}")
         await u.message.reply_text(
             f"🐋 Orca Agent Online\n"
             f"User: {user.first_name} (id={user.id})\n"
@@ -65,10 +91,17 @@ class OrcaBot:
             f"Repo: {config.GH_REPO}@{config.GH_BRANCH}\n"
             f"Tokens: {api.count()}\n"
             f"Mode: {config.RUN_MODE}\n\n"
-            f"Commands:\n"
-            f"/status /skills /sync /device\n"
-            f"/exec <cmd> /token\n"
-            f"/tap <x> <y> /swipe <x1> <y1> <x2> <y2> /text <msg>"
+            f"Core:\n"
+            f"/status /skills /sync /device /verify\n"
+            f"/exec <cmd> /token /brain /agent\n\n"
+            f"Device (ADB):\n"
+            f"/tap <x> <y> /swipe <x1> <y1> <x2> <y2> /text <msg>\n\n"
+            f"Library-backed skills:\n"
+            f"/gh <op> — GitHub (PyGithub)\n"
+            f"/crypto <op> — Markets (pycoingecko)\n"
+            f"/stock <ticker> — Quote (yfinance)\n"
+            f"/qr <text> — QR code (qrcode)\n"
+            f"/short <url> — Shortener (pyshorteners)"
         )
         logger.info(f"START user={user.id} chat={chat.id}")
 
