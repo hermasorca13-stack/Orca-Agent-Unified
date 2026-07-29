@@ -44,6 +44,12 @@ class OrcaBot:
         h(CommandHandler("text", self.cmd_text))
         h(CommandHandler("brain", self.cmd_brain))
         h(CommandHandler("agent", self.cmd_agent))
+        # New 5-skill commands (library-backed)
+        h(CommandHandler("gh", self.cmd_gh))
+        h(CommandHandler("crypto", self.cmd_crypto))
+        h(CommandHandler("stock", self.cmd_stock))
+        h(CommandHandler("qr", self.cmd_qr))
+        h(CommandHandler("short", self.cmd_short))
         h(MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_text))
 
     # ---- Handlers ----
@@ -169,6 +175,400 @@ class OrcaBot:
         if response and len(response) > 4000:
             response = response[:3997] + "…"
         await u.message.reply_text(response or "⚠️ no response")
+
+    # ---------- 5 new skills (library-backed) ----------
+    async def cmd_gh(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """GitHub skill via PyGithub. Usage:
+        /gh repo [name]             - get repo info
+        /gh repos [user]            - list user repos
+        /gh issues [state]          - list issues (open/closed/all)
+        /gh prs [state]             - list pull requests
+        /gh releases                - list releases
+        /gh branches                - list branches
+        /gh search <query>          - search repos
+        /gh file <path>             - get file content
+        /gh gist <desc>|<content>   - create gist
+        """
+        from skills import github_skill
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(self._gh_help())
+            return
+        sub = args[0].lower()
+        try:
+            if sub == "repo":
+                name = args[1] if len(args) > 1 else None
+                r = github_skill.get_repo(name)
+                await u.message.reply_text(
+                    f"📦 {r['name']}\n⭐ {r['stars']}  🍴 {r['forks']}  📋 issues: {r['open_issues']}\n"
+                    f"🔗 {r['html_url']}\n{r['description'] or ''}"
+                )
+            elif sub == "repos":
+                user = args[1] if len(args) > 1 else None
+                rs = github_skill.list_repos(user=user, limit=15)
+                lines = "\n".join(f"• {r['name']} (⭐{r['stars']})" for r in rs)
+                await u.message.reply_text(f"📚 Repos:\n{lines}" or "no repos")
+            elif sub == "issues":
+                state = args[1] if len(args) > 1 else "open"
+                iss = github_skill.list_issues(state=state, limit=15)
+                if not iss:
+                    await u.message.reply_text(f"No {state} issues.")
+                    return
+                lines = "\n".join(f"#{i['number']} {i['title']}" for i in iss)
+                await u.message.reply_text(f"🐛 Issues ({state}):\n{lines}")
+            elif sub == "prs":
+                state = args[1] if len(args) > 1 else "open"
+                prs = github_skill.list_prs(state=state, limit=15)
+                if not prs:
+                    await u.message.reply_text(f"No {state} PRs.")
+                    return
+                lines = "\n".join(f"#{p['number']} {p['title']} ({p['user']})" for p in prs)
+                await u.message.reply_text(f"🔀 PRs ({state}):\n{lines}")
+            elif sub == "releases":
+                rels = github_skill.list_releases(limit=10)
+                if not rels:
+                    await u.message.reply_text("No releases yet.")
+                    return
+                lines = "\n".join(f"• {r['tag']} — {r['name']}" for r in rels)
+                await u.message.reply_text(f"🚀 Releases:\n{lines}")
+            elif sub == "branches":
+                bs = github_skill.list_branches()
+                lines = "\n".join(f"• {b['name']}" for b in bs[:30])
+                await u.message.reply_text(f"🌿 Branches ({len(bs)}):\n{lines}")
+            elif sub == "search":
+                query = " ".join(args[1:])
+                if not query:
+                    await u.message.reply_text("Usage: /gh search <query>")
+                    return
+                rs = github_skill.search_repos(query, limit=5)
+                lines = "\n".join(f"• {r['name']} ⭐{r['stars']} — {r['description'][:60] if r['description'] else ''}" for r in rs)
+                await u.message.reply_text(f"🔍 Search:\n{lines}")
+            elif sub == "file":
+                path = args[1] if len(args) > 1 else "README.md"
+                f = github_skill.get_file(path)
+                if "error" in f:
+                    await u.message.reply_text(f"❌ {f['error']}")
+                    return
+                if f.get("type") == "dir":
+                    items = "\n".join(f"• {x}" for x in f["items"][:30])
+                    await u.message.reply_text(f"📁 {path}/:\n{items}")
+                else:
+                    txt = f.get("decoded", "")[:3000]
+                    await u.message.reply_text(f"📄 {path} ({f['size']} bytes):\n```\n{txt}\n```", parse_mode="Markdown")
+            elif sub == "gist":
+                rest = " ".join(args[1:])
+                if "|" not in rest:
+                    await u.message.reply_text("Usage: /gh gist <desc>|<content>")
+                    return
+                desc, content = rest.split("|", 1)
+                g = github_skill.create_gist(desc.strip(), content.strip())
+                await u.message.reply_text(f"✅ Gist: {g['url']}")
+            else:
+                await u.message.reply_text(self._gh_help())
+        except Exception as e:
+            logger.exception("cmd_gh error")
+            await u.message.reply_text(f"❌ GitHub error: {e}")
+
+    def _gh_help(self) -> str:
+        return ("🐙 GitHub skill (PyGithub):\n"
+                "/gh repo [name] — repo info\n"
+                "/gh repos [user] — list repos\n"
+                "/gh issues [state] — list issues (open/closed)\n"
+                "/gh prs [state] — list PRs\n"
+                "/gh releases — list releases\n"
+                "/gh branches — list branches\n"
+                "/gh search <query> — search repos\n"
+                "/gh file <path> — read file (default: README.md)\n"
+                "/gh gist <desc>|<content> — create gist")
+
+    async def cmd_crypto(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """Crypto skill via pycoingecko. Usage:
+        /crypto price <coin>      - quick price (e.g. bitcoin,ethereum)
+        /crypto coin <id>         - full coin info
+        /crypto markets [n]       - top markets
+        /crypto trending          - trending coins
+        /crypto global            - global market stats
+        /crypto search <query>    - search coin
+        /crypto history <id> [d]  - price history (days)
+        """
+        from skills import crypto_skill
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(self._crypto_help())
+            return
+        sub = args[0].lower()
+        try:
+            if sub == "price":
+                coins = args[1:]
+                if not coins:
+                    await u.message.reply_text("Usage: /crypto price bitcoin ethereum")
+                    return
+                p = crypto_skill.get_price_full(coins)
+                lines = []
+                for coin, data in p.items():
+                    price = data.get("usd", "?")
+                    chg = data.get("usd_24h_change", 0)
+                    cap = data.get("usd_market_cap", 0)
+                    lines.append(f"💰 {coin}: ${price:,.4f}  ({chg:+.2f}% 24h)  MCap: ${cap:,.0f}")
+                await u.message.reply_text("\n".join(lines) or "no data")
+            elif sub == "coin":
+                cid = args[1] if len(args) > 1 else "bitcoin"
+                d = crypto_skill.get_coin(cid)
+                await u.message.reply_text(
+                    f"🪙 {d['name']} ({d['symbol'].upper()})\n"
+                    f"💵 ${d['current_price_usd']:,.4f}\n"
+                    f"📊 MCap: ${d['market_cap_usd']:,.0f}\n"
+                    f"🔄 24h: {d['price_change_24h']:+.2f}%\n"
+                    f"📈 7d: {d['price_change_7d']:+.2f}%  30d: {d['price_change_30d']:+.2f}%\n"
+                    f"🏔 ATH: ${d['ath_usd']:,.4f}  🏞 ATL: ${d['atl_usd']:,.6f}\n"
+                    f"🔗 {d['homepage'] or ''}"
+                )
+            elif sub == "markets":
+                n = int(args[1]) if len(args) > 1 else 10
+                rows = crypto_skill.get_markets(limit=n)
+                lines = [f"#{r['market_cap_rank']} {r['symbol'].upper()} — ${r['price']:,.4f}  ({r['price_change_24h']:+.2f}%)"
+                         for r in rows if r.get('market_cap_rank')]
+                await u.message.reply_text("🏆 Top markets:\n" + "\n".join(lines))
+            elif sub == "trending":
+                t = crypto_skill.get_trending()
+                lines = [f"🔥 #{i+1} {c['name']} ({c['symbol']})" for i, c in enumerate(t[:10])]
+                await u.message.reply_text("📈 Trending:\n" + "\n".join(lines))
+            elif sub == "global":
+                g = crypto_skill.get_global()
+                await u.message.reply_text(
+                    f"🌍 Global crypto market\n"
+                    f"Active cryptos: {g.get('active_cryptocurrencies', '?')}\n"
+                    f"Markets: {g.get('markets', '?')}\n"
+                    f"Total MCap: ${g.get('total_market_cap', {}).get('usd', 0):,.0f}\n"
+                    f"24h Vol: ${g.get('total_volume', {}).get('usd', 0):,.0f}\n"
+                    f"MCap change 24h: {g.get('market_cap_change_percentage_24h_usd', 0):+.2f}%"
+                )
+            elif sub == "search":
+                q = " ".join(args[1:])
+                if not q:
+                    await u.message.reply_text("Usage: /crypto search <query>")
+                    return
+                rs = crypto_skill.search_coin(q)[:10]
+                lines = [f"• {c['name']} ({c['symbol']}) — {c['id']}" for c in rs]
+                await u.message.reply_text("🔎 Search:\n" + "\n".join(lines))
+            elif sub == "history":
+                cid = args[1] if len(args) > 1 else "bitcoin"
+                days = args[2] if len(args) > 2 else "30"
+                h = crypto_skill.get_history(cid, days=days)
+                prices = h.get("prices", [])
+                if not prices:
+                    await u.message.reply_text("No data.")
+                    return
+                first = prices[0][1]
+                last = prices[-1][1]
+                chg = (last - first) / first * 100
+                await u.message.reply_text(
+                    f"📊 {cid} ({days}d):\n"
+                    f"First: ${first:,.4f}\n"
+                    f"Last:  ${last:,.4f}\n"
+                    f"Change: {chg:+.2f}%\n"
+                    f"Points: {len(prices)}"
+                )
+            else:
+                await u.message.reply_text(self._crypto_help())
+        except Exception as e:
+            logger.exception("cmd_crypto error")
+            await u.message.reply_text(f"❌ Crypto error: {e}")
+
+    def _crypto_help(self) -> str:
+        return ("💎 Crypto skill (CoinGecko):\n"
+                "/crypto price <coins...> — prices\n"
+                "/crypto coin <id> — full coin info\n"
+                "/crypto markets [n] — top markets\n"
+                "/crypto trending — trending coins\n"
+                "/crypto global — global stats\n"
+                "/crypto search <query> — search coin\n"
+                "/crypto history <id> [days] — price history")
+
+    async def cmd_stock(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """Stocks skill via yfinance. Usage:
+        /stock <symbol>          - quote
+        /stock h <symbol> [prd]  - history (1mo default)
+        /stock news <symbol>     - news
+        /stock targets <symbol>  - analyst targets
+        /stock search <query>    - symbol search
+        /stock div <symbol>      - dividends
+        """
+        from skills import stocks_skill
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(self._stock_help())
+            return
+        sub = args[0].lower()
+        try:
+            if sub == "h":
+                sym = args[1].upper() if len(args) > 1 else "AAPL"
+                period = args[2] if len(args) > 2 else "1mo"
+                hist = stocks_skill.get_history(sym, period=period)
+                if not hist:
+                    await u.message.reply_text("no data")
+                    return
+                first = hist[0]["close"]
+                last = hist[-1]["close"]
+                chg = (last - first) / first * 100
+                high = max(h["high"] for h in hist)
+                low = min(h["low"] for h in hist)
+                await u.message.reply_text(
+                    f"📈 {sym} ({period}): {len(hist)} days\n"
+                    f"Open: ${first:,.2f}  Close: ${last:,.2f}  Change: {chg:+.2f}%\n"
+                    f"High: ${high:,.2f}  Low: ${low:,.2f}"
+                )
+            elif sub == "news":
+                sym = args[1].upper() if len(args) > 1 else "AAPL"
+                n = stocks_skill.get_news(sym, limit=5)
+                if not n:
+                    await u.message.reply_text(f"No news for {sym}")
+                    return
+                lines = [f"• {x['title']} ({x['publisher']})" for x in n if x.get("title")]
+                await u.message.reply_text(f"📰 {sym} news:\n" + "\n".join(lines))
+            elif sub == "targets":
+                sym = args[1].upper() if len(args) > 1 else "AAPL"
+                t = stocks_skill.get_analyst_targets(sym)
+                await u.message.reply_text(
+                    f"🎯 {sym} analyst targets:\n"
+                    f"Current: ${t.get('current') or '?'}\n"
+                    f"Low/Mean/Median/High: ${t.get('target_low', '?')} / ${t.get('target_mean', '?')} / ${t.get('target_median', '?')} / ${t.get('target_high', '?')}\n"
+                    f"Recommendation: {t.get('recommendation', '?')} ({t.get('num_analysts', 0)} analysts)"
+                )
+            elif sub == "search":
+                q = " ".join(args[1:])
+                if not q:
+                    await u.message.reply_text("Usage: /stock search <query>")
+                    return
+                rs = stocks_skill.search_symbols(q)
+                lines = [f"• {r['symbol']} — {r['short_name']} ({r['exchange']})" for r in rs[:10]]
+                await u.message.reply_text("🔍 Search:\n" + "\n".join(lines))
+            elif sub == "div":
+                sym = args[1].upper() if len(args) > 1 else "AAPL"
+                d = stocks_skill.get_dividends(sym)
+                if not d:
+                    await u.message.reply_text(f"No dividends for {sym}")
+                    return
+                recent = list(d.items())[-5:]
+                lines = [f"• {date}: ${val}" for date, val in recent]
+                await u.message.reply_text(f"💸 {sym} recent dividends:\n" + "\n".join(lines))
+            else:
+                # default: quote
+                sym = sub.upper()
+                q = stocks_skill.get_quote(sym)
+                await u.message.reply_text(
+                    f"📊 {q.get('short_name') or sym} ({q.get('exchange')})\n"
+                    f"💵 ${q.get('current_price', '?')}\n"
+                    f"📈 52w: ${q.get('52w_low', '?')} — ${q.get('52w_high', '?')}\n"
+                    f"🏷 Sector: {q.get('sector', '?')}\n"
+                    f"📦 MCap: ${q.get('market_cap', 0):,.0f}\n"
+                    f"📊 P/E: {q.get('pe_ratio', '?')}\n"
+                    f"💰 Yield: {q.get('dividend_yield', 0)*100 if q.get('dividend_yield') else 0:.2f}%\n"
+                    f"β Beta: {q.get('beta', '?')}"
+                )
+        except Exception as e:
+            logger.exception("cmd_stock error")
+            await u.message.reply_text(f"❌ Stock error: {e}")
+
+    def _stock_help(self) -> str:
+        return ("📈 Stocks skill (yfinance):\n"
+                "/stock <SYM> — quote\n"
+                "/stock h <SYM> [period] — history\n"
+                "/stock news <SYM> — recent news\n"
+                "/stock targets <SYM> — analyst targets\n"
+                "/stock search <query> — symbol search\n"
+                "/stock div <SYM> — dividends")
+
+    async def cmd_qr(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """QR skill via qrcode. Usage:
+        /qr <text>             - generate QR
+        /qr ascii <text>       - ASCII preview
+        /qr svg <text>         - SVG output
+        """
+        from skills import qr_skill
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(self._qr_help())
+            return
+        sub = args[0].lower()
+        text = " ".join(args[1:]) if sub in ("ascii", "svg") else " ".join(args)
+        if not text:
+            await u.message.reply_text("Usage: /qr <text>")
+            return
+        try:
+            if sub == "ascii":
+                art = qr_skill.generate_ascii(text)
+                await u.message.reply_text(f"```\n{art}\n```", parse_mode="Markdown")
+            elif sub == "svg":
+                svg = qr_skill.generate_svg(text)
+                # send as text since SVG is big; first 500 chars preview
+                await u.message.reply_text(f"✅ SVG generated ({len(svg)} bytes). First 400 chars:\n```xml\n{svg[:400]}\n```", parse_mode="Markdown")
+            else:
+                # PNG — send as photo
+                from io import BytesIO
+                png = qr_skill.generate_png(text)
+                await u.message.reply_photo(photo=BytesIO(png), caption=f"🔳 QR: {text[:100]}")
+        except Exception as e:
+            logger.exception("cmd_qr error")
+            await u.message.reply_text(f"❌ QR error: {e}")
+
+    def _qr_help(self) -> str:
+        return ("🔳 QR skill:\n"
+                "/qr <text> — generate PNG\n"
+                "/qr ascii <text> — ASCII preview\n"
+                "/qr svg <text> — SVG output")
+
+    async def cmd_short(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """URL shortener via pyshorteners. Usage:
+        /short <url>                    - shorten with default (is.gd)
+        /short <url> tinyurl            - specific provider
+        /short list                     - list providers
+        /short multi <url>              - shorten across 5 providers
+        /short expand <url> <provider>  - expand a short URL
+        """
+        from skills import url_shortener_skill
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(self._short_help())
+            return
+        sub = args[0].lower()
+        try:
+            if sub == "list":
+                ps = url_shortener_skill.list_providers()
+                await u.message.reply_text(f"🔗 Available providers:\n" + ", ".join(ps))
+            elif sub == "multi":
+                url = args[1] if len(args) > 1 else None
+                if not url:
+                    await u.message.reply_text("Usage: /short multi <url>")
+                    return
+                out = url_shortener_skill.shorten_multi(url)
+                lines = [f"• {p}: {r.get('short_url', r.get('error'))}" for p, r in out.items()]
+                await u.message.reply_text(f"🔗 Shortened across providers:\n" + "\n".join(lines))
+            elif sub == "expand":
+                if len(args) < 3:
+                    await u.message.reply_text("Usage: /short expand <url> <provider>")
+                    return
+                url, prov = args[1], args[2]
+                r = url_shortener_skill.expand(url, provider=prov)
+                await u.message.reply_text(f"🔓 Expanded: {r.get('expanded_url', r.get('error'))}")
+            else:
+                url = args[0]
+                prov = args[1] if len(args) > 1 else "isgd"
+                r = url_shortener_skill.shorten(url, provider=prov)
+                if "error" in r:
+                    await u.message.reply_text(f"❌ {r['error']}")
+                else:
+                    await u.message.reply_text(f"🔗 {r['provider']}: {r['short_url']}")
+        except Exception as e:
+            logger.exception("cmd_short error")
+            await u.message.reply_text(f"❌ Shorten error: {e}")
+
+    def _short_help(self) -> str:
+        return ("🔗 URL Shortener:\n"
+                "/short <url> [provider] — shorten (default: isgd)\n"
+                "/short multi <url> — multi-provider\n"
+                "/short list — list providers\n"
+                "/short expand <url> <provider> — expand")
 
     async def cmd_verify(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """Engineering verification: check imports + duplicate filenames + config health."""
