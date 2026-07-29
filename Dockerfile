@@ -1,22 +1,32 @@
-FROM node:18-alpine
+# Orca Agent — Python 3.11 slim, single-stage, optimized
+FROM python:3.11-slim
+
+# System deps (curl for healthcheck + tzdata for logs)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl ca-certificates tzdata git \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Install Python deps first (layer cache)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy application
+# Copy source
 COPY . .
 
-# Expose port
-EXPOSE 3000
+# Runtime dirs
+RUN mkdir -p logs data backups
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+# Healthcheck — uses python stdlib so we don't need the bot process up
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import urllib.request,json; r=urllib.request.urlopen('https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe', timeout=4); d=json.loads(r.read()); assert d.get('ok')" \
+    || exit 1
 
-# Start application
-CMD ["npm", "start"]
+EXPOSE 8080
+
+# Single canonical entrypoint — orca.py handles bot|sync|status|doctor
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+CMD ["python", "-u", "orca.py", "bot"]

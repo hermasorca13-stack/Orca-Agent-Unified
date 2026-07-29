@@ -36,7 +36,7 @@ venv.bak/
 .vscode/
 .idea/
 *.swp
-*.swo
+*.swp
 *~
 .DS_Store
 
@@ -47,14 +47,16 @@ htmlcov/
 .tox/
 .hypothesis/
 
-# Database
+# Database (local dev only)
 *.db
 *.sqlite
 *.sqlite3
+data/*.db
 
 # Logs
 logs/
 *.log
+bot.log
 
 # Vector databases
 faiss_index/
@@ -65,3 +67,6 @@ keys/
 secrets/
 *.pem
 *.key
+
+data/*
+!data/.gitkeep
