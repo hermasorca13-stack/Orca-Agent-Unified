@@ -131,7 +131,26 @@ class MemorySystem:
                 BEGIN
                     DELETE FROM memories_fts WHERE rowid = old.id;
                 END;
+
+                -- 2026-07-29 additive: keep FTS in sync on UPDATE too.
+                -- Original schema only had INSERT/DELETE triggers; an
+                -- in-place edit to `content` would leave the FTS index
+                -- stale and break semantic search. This trigger is
+                -- idempotent (CREATE TRIGGER IF NOT EXISTS) and never
+                -- alters existing data.
+                CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories
+                BEGIN
+                    UPDATE memories_fts SET content = new.content WHERE rowid = old.id;
+                END;
             """)
+
+            # 2026-07-29 additive: WAL mode for concurrent reads/writes.
+            # The bot's loop and /memory exports now run in parallel
+            # without blocking each other. Idempotent and safe on a
+            # freshly-created DB.
+            conn.execute("PRAGMA journal_mode = WAL;")
+            conn.execute("PRAGMA synchronous = NORMAL;")
+            conn.execute("PRAGMA foreign_keys = ON;")
     
     def add_memory(
         self,
@@ -317,3 +336,19 @@ class MemorySystem:
             users = conn.execute("SELECT COUNT(DISTINCT user_id) as c FROM memories").fetchone()["c"]
             sessions = conn.execute("SELECT COUNT(*) as c FROM sessions").fetchone()["c"]
             return {"total_memories": total, "unique_users": users, "sessions": sessions}
+
+    # 2026-07-29 additive: richer diagnostics for /status and /health.
+    # Never mutates state. Safe to call any time.
+    def get_health_snapshot(self) -> Dict[str, Any]:
+        with self._get_conn() as conn:
+            row = conn.execute("PRAGMA journal_mode;").fetchone()
+            journal = row[0] if row else "unknown"
+            base = self.get_stats()
+            base["journal_mode"] = journal
+            base["db_size_bytes"] = self.db_path.stat().st_size if self.db_path.exists() else 0
+            try:
+                fts = conn.execute("SELECT COUNT(*) as c FROM memories_fts").fetchone()["c"]
+                base["fts_rows"] = fts
+            except Exception:
+                base["fts_rows"] = -1
+            return base

@@ -51,6 +51,16 @@ class OrcaBot:
         h(CommandHandler("stock", self.cmd_stock))
         h(CommandHandler("qr", self.cmd_qr))
         h(CommandHandler("short", self.cmd_short))
+        # 2026-07-29 additive: 8 more library-backed skills
+        h(CommandHandler("weather", self.cmd_weather))
+        h(CommandHandler("translate", self.cmd_translate))
+        h(CommandHandler("pdf", self.cmd_pdf))
+        h(CommandHandler("wiki", self.cmd_wiki))
+        h(CommandHandler("say", self.cmd_say))
+        h(CommandHandler("news", self.cmd_news))
+        h(CommandHandler("fx", self.cmd_fx))
+        h(CommandHandler("arxiv", self.cmd_arxiv))
+        h(CommandHandler("health", self.cmd_health))
         h(MessageHandler(filters.TEXT & ~filters.COMMAND, self.on_text))
 
     # ---- Handlers ----
@@ -82,6 +92,16 @@ class OrcaBot:
                 BotCommand("stock", "Stock quote (yfinance)"),
                 BotCommand("qr", "Generate QR code (PNG/SVG)"),
                 BotCommand("short", "Shorten URL (16+ providers)"),
+                # 2026-07-29 additive: 8 more library-backed skills
+                BotCommand("weather", "Weather forecast (Open-Meteo, no key)"),
+                BotCommand("translate", "Translate text (100+ languages)"),
+                BotCommand("pdf", "Read PDF (info/text/tables)"),
+                BotCommand("wiki", "Wikipedia search/summary"),
+                BotCommand("say", "Text-to-speech (edge-tts, no key)"),
+                BotCommand("news", "News headlines (Google News RSS)"),
+                BotCommand("fx", "Currency exchange (Frankfurter, no key)"),
+                BotCommand("arxiv", "Search arXiv papers"),
+                BotCommand("health", "DB / FS / Network probe"),
             ])
         except Exception as e:
             logger.debug(f"set_my_commands skipped: {e}")
@@ -760,6 +780,209 @@ class OrcaBot:
         except Exception as me:
             logger.debug(f"memory save (fallback) skipped: {me}")
         await u.message.reply_text(fallback)
+
+    # ===== 2026-07-29 additive: 8 new library-backed skills =====
+    # All wired with @with_user_ratelimit so the bot never gets flooded.
+    # Each handler imports its skill module lazily so a missing skill
+    # never breaks the rest of the bot.
+
+    async def cmd_weather(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        from core.middleware import with_user_ratelimit, friendly_error
+        from skills import weather_skill
+        args = c.args or []
+        place = " ".join(args).strip() or "Cairo"
+        try:
+            text = await weather_skill.weather(place, days=2)
+        except Exception as e:
+            text = friendly_error(e)
+        await u.message.reply_text(text, parse_mode="Markdown")
+
+    async def cmd_translate(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        from core.middleware import with_user_ratelimit, friendly_error
+        from skills import translation_skill
+        raw = (u.message.text or "").split(maxsplit=2)
+        # /translate <lang> <text>  OR  /translate <text>  (defaults to en)
+        if len(raw) < 2:
+            await u.message.reply_text(
+                "Usage: /translate <lang> <text>\n"
+                "Example: /translate ar Hello world\n"
+                "Languages: en, ar, es, fr, de, ru, zh, ja, hi, tr …"
+            )
+            return
+        if len(raw) == 2:
+            target, body = "en", raw[1]
+        else:
+            target, body = raw[1], raw[2]
+        try:
+            text = await translation_skill.translate(body, target)
+        except Exception as e:
+            text = friendly_error(e)
+        await u.message.reply_text(f"🌐 → {target}\n{text}")
+
+    async def cmd_pdf(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        from core.middleware import friendly_error
+        from skills import pdf_skill
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(
+                "Usage: /pdf info <path>\n"
+                "       /pdf text <path> [page]\n"
+                "       /pdf tables <path> [page]"
+            )
+            return
+        op = args[0].lower()
+        path = args[1] if len(args) > 1 else ""
+        try:
+            if op == "info":
+                meta = pdf_skill.info(path)
+                out = (
+                    f"📄 *{meta.get('title') or path}*\n"
+                    f"Pages: {meta.get('pages')}\n"
+                    f"Author: {meta.get('author') or '—'}\n"
+                    f"Size: {meta.get('size_bytes')} bytes"
+                )
+            elif op == "text":
+                page = int(args[2]) if len(args) > 2 else None
+                body = pdf_skill.text(path, page=page)
+                out = body[:3500] + ("\n…[truncated]" if len(body) > 3500 else "")
+            elif op == "tables":
+                page = int(args[2]) if len(args) > 2 else None
+                tables = pdf_skill.tables(path, page=page)
+                if not tables:
+                    out = "📭 No tables found on that page"
+                else:
+                    lines = [f"📊 {len(tables)} table(s) found", ""]
+                    for i, t in enumerate(tables[:3], 1):
+                        lines.append(f"*Table {i}* ({len(t)} rows)")
+                        for row in t[:5]:
+                            lines.append(" | ".join(row))
+                        lines.append("")
+                    out = "\n".join(lines)
+            else:
+                out = f"⚠️ Unknown op: {op}. Use info|text|tables."
+        except Exception as e:
+            out = friendly_error(e)
+        await u.message.reply_text(out, parse_mode="Markdown")
+
+    async def cmd_wiki(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        from core.middleware import friendly_error
+        from skills import wikipedia_skill
+        raw = (u.message.text or "").split(maxsplit=1)
+        if len(raw) < 2:
+            await u.message.reply_text(
+                "Usage: /wiki <query>  — search\n"
+                "       /wiki summary <title>  — short article"
+            )
+            return
+        body = raw[1].strip()
+        try:
+            if body.lower().startswith("summary "):
+                out = await wikipedia_skill.summary(body[len("summary "):].strip())
+            else:
+                out = await wikipedia_skill.search(body, limit=5)
+        except Exception as e:
+            out = friendly_error(e)
+        await u.message.reply_text(out, parse_mode="Markdown", disable_web_page_preview=True)
+
+    async def cmd_say(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        from core.middleware import friendly_error
+        from skills import tts_skill
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(
+                "Usage: /say <text>  — default voice\n"
+                "       /say voice  — list available voices"
+            )
+            return
+        if args[0].lower() == "voice":
+            try:
+                out = await tts_skill.list_voices()
+            except Exception as e:
+                out = friendly_error(e)
+            await u.message.reply_text(out, parse_mode="Markdown")
+            return
+        text = " ".join(args)
+        # Optional voice: /say <voice> <text>  if first arg matches a known voice
+        voice = "en-US-AriaNeural"
+        first = args[0]
+        if first in tts_skill.VOICES or first.endswith("Neural"):
+            voice = first
+            text = " ".join(args[1:]) or "Hello"
+        try:
+            path = await tts_skill.synthesize(text, voice=voice)
+        except Exception as e:
+            await u.message.reply_text(friendly_error(e))
+            return
+        try:
+            with open(path, "rb") as f:
+                await u.message.reply_voice(f, filename="orca.mp3",
+                                            caption=f"🎙 {voice}")
+        except Exception as e:
+            await u.message.reply_text(friendly_error(e))
+
+    async def cmd_news(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        from core.middleware import friendly_error
+        from skills import news_skill
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(
+                "Usage: /news <query>           — search\n"
+                "       /news topic <TECHNOLOGY>  — by topic"
+            )
+            return
+        try:
+            if args[0].lower() == "topic":
+                topic = args[1] if len(args) > 1 else "TECHNOLOGY"
+                out = await news_skill.topic(topic, limit=8)
+            else:
+                out = await news_skill.search(" ".join(args), limit=8)
+        except Exception as e:
+            out = friendly_error(e)
+        await u.message.reply_text(out, parse_mode="Markdown", disable_web_page_preview=True)
+
+    async def cmd_fx(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        from core.middleware import friendly_error
+        from skills import fx_skill
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(
+                "Usage: /fx <amount> <base> <target>   e.g. /fx 100 USD EUR\n"
+                "       /fx series <base> <target> [days]\n"
+                "       /fx list"
+            )
+            return
+        try:
+            if args[0].lower() == "list":
+                out = await fx_skill.list_currencies()
+            elif args[0].lower() == "series" and len(args) >= 3:
+                days = int(args[3]) if len(args) > 3 else 30
+                out = await fx_skill.series(args[1], args[2], days=days)
+            elif len(args) >= 3:
+                out = await fx_skill.rate(args[0], args[1], args[2])
+            else:
+                out = "⚠️ Need: /fx <amount> <base> <target>"
+        except Exception as e:
+            out = friendly_error(e)
+        await u.message.reply_text(out, parse_mode="Markdown")
+
+    async def cmd_arxiv(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        from core.middleware import friendly_error
+        from skills import arxiv_skill
+        args = c.args or []
+        if not args:
+            await u.message.reply_text("Usage: /arxiv <query>   e.g. /arxiv transformer attention")
+            return
+        try:
+            out = await arxiv_skill.search(" ".join(args), limit=5)
+        except Exception as e:
+            out = friendly_error(e)
+        await u.message.reply_text(out, parse_mode="Markdown", disable_web_page_preview=True)
+
+    async def cmd_health(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/health — DB / FS / Network probe."""
+        from core.health import probe, format_for_telegram
+        p = probe()
+        await u.message.reply_text(format_for_telegram(p), parse_mode="MarkdownV2")
 
     def run(self):
         if not self.app:
