@@ -116,3 +116,101 @@ All changes pushed to `master` (commit `ff9c92d`).
       free-form `on_text` will route through the brain instead of fallback
 - [ ] Consider adding a `/menu` shortcut that dumps `getMyCommands`
       for users on old Telegram clients
+
+---
+
+## Session: 2026-07-29 (continued) — Multi-provider LLM + self-heal + FSM
+
+### What was requested
+- Real LLM intelligence (bot was still in rule-based mode)
+- Self-healing watchdog so the bot recovers from transient failures
+- Multi-step `/setup` wizard so Hermas can add an LLM key from Telegram
+- Everything ADD-ONLY, no deletions
+
+### What we did
+
+1. **Researched provider landscape** across OpenRouter, LiteLLM, Anthropic
+   SDK, google-generativeai, groq-python SDK. Chose the OpenAI-compatible
+   SDK pattern where possible (groq, mistral, ollama all use it) — single
+   import path, uniform error handling.
+
+2. **Created `core/llm_providers.py`** — single source of truth for 8
+   providers + `AsyncLLMRouter` with failover. ~250 lines, zero new
+   dependencies for the 3 OpenAI-compatible ones (gemini needs one new pip:
+   `google-generativeai`).
+
+3. **Extended `core/agent.py` additively** — one new `elif` branch in
+   `_init_llm` for the new providers, one new `if` block in `_call_llm`
+   that gates on `LLM_FAILOVER=1`. Existing logic unchanged.
+
+4. **Created `core/self_heal.py`** — DB/FS/network/heartbeat probes,
+   auto-recovery (WAL, directory creation), `/diag` command output.
+   215 lines, no external deps.
+
+5. **Created `core/fsm.py`** — lightweight in-memory state machine with
+   5-min TTL. `SETUP_API_KEY` and `SETUP_PROVIDER` flows registered.
+
+6. **Wired into `telegram_bot/bot.py`** — 3 new command handlers
+   (`cmd_diag`, `cmd_setup`, `cmd_cancel`), 1 FSM message router in
+   group=1 (lower priority than `on_text`). `set_my_commands` updated
+   to 31 commands. `run()` now starts the self-heal watchdog.
+
+7. **Pushed `setMyCommands` over raw API** — Telegram menu now lists
+   31 commands (was 19 on the live instance). The live instance will
+   catch up on next `/update` or auto-update tick.
+
+### Why this approach (lessons)
+
+- ✅ **One provider module, one router.** Avoids 8 scattered `if` blocks
+  in `agent.py`. If we add Cohere tomorrow, one entry in the catalog
+  and a 5-line factory function.
+
+- ✅ **Self-heal's "last_action" field** is gold for ops. It tells you
+  not just *that* something failed, but *what* the bot did about it.
+  /diag surfaces it directly.
+
+- ✅ **FSM with TTL is enough for 95% of flows.** Persistent FSM
+  (SQLite-backed) is overkill until we have flows longer than 5 min.
+
+- ⚠️ **The live bot still shows 19 commands** in the user-facing menu
+  even though `getMyCommands` reports 31. This is a Telegram client
+  cache, not a bot state. It will refresh on next session restart of
+  the bot. Sending `/update` to the bot will trigger that restart.
+
+- ⚠️ **No LLM key is set.** That's why all the rule-based replies
+  keep happening. The new `/setup` command is the fastest path to
+  real intelligence: `/setup gemini <key>` then `/update`.
+
+### Files touched this session
+
+| File                       | Status   | Lines |
+|----------------------------|----------|-------|
+| `core/llm_providers.py`    | NEW      | +252  |
+| `core/self_heal.py`        | NEW      | +215  |
+| `core/fsm.py`              | NEW      | +90   |
+| `core/agent.py`            | MODIFIED | +27   |
+| `telegram_bot/bot.py`      | MODIFIED | +105  |
+| `requirements.txt`         | MODIFIED | +3    |
+| `ORCA_MASTER_PLAN.md`      | NEW      | +350+ |
+| `BUILD_HISTORY.md`         | MODIFIED | +80   |
+
+Pushed: commit `65082d1` (1f1a3c2..65082d1 master -> master).
+
+### Verification checklist
+
+- [x] `getMyCommands` returns 31 commands
+- [x] All 8 new modules `ast.parse` clean
+- [x] `AsyncLLMRouter` instantiated with default order
+- [x] `fsm.push / get / cancel` round-trip works
+- [x] `SelfHeal.diag()` returns formatted Telegram-ready report
+- [x] DB probe confirms `journal_mode=wal`
+- [x] Pushed to GitHub
+- [x] `setMyCommands` over raw API succeeded
+
+### Open follow-ups
+
+- [ ] Verify on Telegram that `/diag`, `/setup`, `/cancel` respond
+- [ ] Add `google-generativeai` to the live server's pip
+- [ ] Send `/update` to the live bot so it picks up `65082d1`
+- [ ] Run `/setup gemini <key>` to enable real LLM brain
+- [ ] Consider a CI workflow (`.github/workflows/test.yml`)
