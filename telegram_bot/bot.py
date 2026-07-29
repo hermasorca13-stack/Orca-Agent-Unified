@@ -36,6 +36,7 @@ class OrcaBot:
         h(CommandHandler("status", self.cmd_status))
         h(CommandHandler("skills", self.cmd_skills))
         h(CommandHandler("sync", self.cmd_sync))
+        h(CommandHandler("update", self.cmd_update))
         h(CommandHandler("device", self.cmd_device))
         h(CommandHandler("exec", self.cmd_exec))
         h(CommandHandler("token", self.cmd_token))
@@ -64,7 +65,8 @@ class OrcaBot:
                 BotCommand("start", "Start Orca Agent"),
                 BotCommand("status", "System status"),
                 BotCommand("skills", "List available skills"),
-                BotCommand("sync", "Push to GitHub"),
+                BotCommand("sync", "Push to GitHub / self-update"),
+                BotCommand("update", "Pull latest code from GitHub"),
                 BotCommand("device", "Android device info"),
                 BotCommand("exec", "Execute shell command"),
                 BotCommand("token", "Generate API token"),
@@ -83,6 +85,17 @@ class OrcaBot:
             ])
         except Exception as e:
             logger.debug(f"set_my_commands skipped: {e}")
+        # Silent auto-update check — pull latest code if remote differs
+        update_line = ""
+        try:
+            from core.auto_updater import maybe_auto_update
+            r = maybe_auto_update()
+            if r.get("changed"):
+                update_line = f"\n🔄 Auto-updated: {r.get('before','')[:7]} → {r.get('after','')[:7]}"
+            else:
+                update_line = f"\n✅ Code up-to-date ({r.get('before','')[:7]})"
+        except Exception as ae:
+            logger.debug(f"auto-update check failed: {ae}")
         await u.message.reply_text(
             f"🐋 Orca Agent Online\n"
             f"User: {user.first_name} (id={user.id})\n"
@@ -90,9 +103,9 @@ class OrcaBot:
             f"Bot: @{config.TG_USERNAME}\n"
             f"Repo: {config.GH_REPO}@{config.GH_BRANCH}\n"
             f"Tokens: {api.count()}\n"
-            f"Mode: {config.RUN_MODE}\n\n"
+            f"Mode: {config.RUN_MODE}{update_line}\n\n"
             f"Core:\n"
-            f"/status /skills /sync /device /verify\n"
+            f"/status /skills /sync /update /device /verify\n"
             f"/exec <cmd> /token /brain /agent\n\n"
             f"Device (ADB):\n"
             f"/tap <x> <y> /swipe <x1> <y1> <x2> <y2> /text <msg>\n\n"
@@ -126,6 +139,42 @@ class OrcaBot:
         from github_sync.gh_sync import sync_to_github
         r = sync_to_github()
         await u.message.reply_text(f"{'✅' if r['ok'] else '❌'} {r['msg']}")
+
+    async def cmd_update(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """Pull latest code from GitHub master and restart the bot.
+
+        This is the production self-update path. The local clone runs
+        `git pull --ff-only origin <branch>`, then the current Python
+        process is replaced via os.execvp with a fresh `python orca.py bot`
+        so the new code takes the polling slot.
+        """
+        thinking = await u.message.reply_text("📥 Pulling latest from GitHub...")
+        try:
+            from core.auto_updater import maybe_auto_update, get_local_sha
+            before = get_local_sha()
+            r = maybe_auto_update()
+            after = r.get("after") or before
+            if not r.get("changed"):
+                await thinking.edit_text(
+                    f"✅ Already up-to-date\n"
+                    f"Local: {before[:10] or '?'}\n"
+                    f"Remote: {after[:10] or '?'}"
+                )
+                return
+            await thinking.edit_text(
+                f"✅ Pulled: {before[:7]} → {after[:7]}\n"
+                f"Restarting bot to apply..."
+            )
+            # Replace the current process — the OS reaps the old one, and
+            # the new instance picks up the new code immediately.
+            from core.auto_updater import restart_bot
+            restart_bot()
+        except Exception as e:
+            logger.exception("cmd_update failed")
+            try:
+                await thinking.edit_text(f"❌ Update failed: {e}")
+            except Exception:
+                await u.message.reply_text(f"❌ Update failed: {e}")
 
     async def cmd_device(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         info = get_device_info()
@@ -688,11 +737,16 @@ class OrcaBot:
                 logger.debug(f"memory save (assistant) skipped: {me}")
             await u.message.reply_text(response)
             return
-        # Fallback: echo + command hint
+        # Fallback: echo + command hint (full menu, including the 5 library-backed skills)
         fallback = (
-            f"Received: {text[:200]}\n"
-            f"Use /status /skills /sync /exec /device /token /tap /swipe /text\n"
-            f"(Set LLM_API_KEY or OPENAI_API_KEY in .env to enable brain mode)"
+            f"Received: {text[:200]}\n\n"
+            f"🧠 Brain offline — rule-based mode.\n"
+            f"Available commands:\n"
+            f"• /start /status /skills /sync /update /verify\n"
+            f"• /exec /token /brain /agent /device\n"
+            f"• /tap /swipe /text\n"
+            f"• /gh /crypto /stock /qr /short\n\n"
+            f"Set LLM_API_KEY or OPENAI_API_KEY in .env to unlock the full brain."
         )
         try:
             mem.add_memory(
