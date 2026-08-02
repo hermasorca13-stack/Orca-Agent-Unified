@@ -3,6 +3,7 @@
 Real Telegram bot using long-polling.
 - Bot: @HermesOrcaXBot
 - Commands: /start /status /skills /sync /device /exec /token /tap /swipe /text
+            /transcribe /say /image /docx /xlsx /pdf /search /v2e /research
 - All handlers share the same APIManager and config singletons.
 """
 import sys
@@ -67,6 +68,9 @@ class OrcaBot:
         h(CommandHandler("web", self.cmd_search))  # alias
         h(CommandHandler("image", self.cmd_image))
         h(CommandHandler("img", self.cmd_image))  # alias
+        # --- Smart integration: cross-skill pipelines (additive) ---
+        h(CommandHandler("v2e", self.cmd_v2e))
+        h(CommandHandler("research", self.cmd_research))
         h(CommandHandler("health", self.cmd_health))
         # Auto-transcribe incoming voice / audio messages (Apple-grade: voice is the
         # primary input on Telegram per MASTER_PROMPT).
@@ -116,7 +120,7 @@ class OrcaBot:
                 # 2026-07-29 additive: 8 more library-backed skills
                 BotCommand("weather", "Weather forecast (Open-Meteo, no key)"),
                 BotCommand("translate", "Translate text (100+ languages)"),
-                BotCommand("pdf", "Read PDF (info/text/tables)"),
+                BotCommand("pdf", "PDF read+make+md+ocr (info/text/make/md/ocr)"),
                 BotCommand("wiki", "Wikipedia search/summary"),
                 BotCommand("say", "Text-to-speech (edge-tts, no key)"),
                 BotCommand("news", "News headlines (Google News RSS)"),
@@ -127,6 +131,8 @@ class OrcaBot:
                 BotCommand("xlsx", "Read/create .xlsx (openpyxl)"),
                 BotCommand("search", "Web search (Tavily/Serper/DDG)"),
                 BotCommand("image", "Generate image from prompt (DALL-E)"),
+                BotCommand("v2e", "Voice → English (transcribe + translate pipeline)"),
+                BotCommand("research", "Multi-source research card (web+wiki+news)"),
                 BotCommand("health", "DB / FS / Network probe"),
                 # 2026-07-29 ADD: diag + setup wizard + cancel FSM
                 BotCommand("diag", "Diagnostics (self-heal report)"),
@@ -159,12 +165,24 @@ class OrcaBot:
             f"/exec <cmd> /token /brain /agent\n\n"
             f"Device (ADB):\n"
             f"/tap <x> <y> /swipe <x1> <y1> <x2> <y2> /text <msg>\n\n"
-            f"Library-backed skills:\n"
-            f"/gh <op> — GitHub (PyGithub)\n"
-            f"/crypto <op> — Markets (pycoingecko)\n"
-            f"/stock <ticker> — Quote (yfinance)\n"
-            f"/qr <text> — QR code (qrcode)\n"
-            f"/short <url> — Shortener (pyshorteners)"
+            f"Media:\n"
+            f"/transcribe [reply|url] — voice → text (Whisper)\n"
+            f"/say <text> — text → voice (edge-tts, no key)\n"
+            f"/image <prompt> — text → image (DALL-E 3)\n\n"
+            f"Documents:\n"
+            f"/docx <info|read|tables|create|md|append> — Word\n"
+            f"/xlsx <info|sheets|read|cell|create|append|set> — Excel\n"
+            f"/pdf <info|text|tables|make|md|ocr> — PDF\n\n"
+            f"Web / research:\n"
+            f"/search <q> [-n N] [-p prov] [-t sec]\n"
+            f"/news [topic], /wiki <query>, /arxiv <query>\n\n"
+            f"Pipelines (smart combinations):\n"
+            f"/v2e [reply] — voice → English (transcribe + translate)\n"
+            f"/research <q> — web + wiki + news combined card\n\n"
+            f"Finance:\n"
+            f"/crypto, /stock, /fx\n\n"
+            f"Utilities:\n"
+            f"/gh, /qr, /short, /weather, /translate"
         )
         logger.info(f"START user={user.id} chat={chat.id}")
 
@@ -179,10 +197,55 @@ class OrcaBot:
             f"Mode: {config.RUN_MODE}"
         )
 
+    # --- Smart integration: skill catalog + pipeline commands ---
+    # Maps each registered skill stem to a one-line description. Used
+    # by /skills, /start, and the on_text fallback. Add an entry here
+    # whenever a new skill is added; the bot surfaces it everywhere.
+    SKILL_CATALOG: dict = {
+        # Foundation + system
+        "orca_skills":   "skill registry (do not call directly)",
+        "shell_executor": "whitelisted shell commands (read-only ops)",
+        # Media
+        "transcribe_skill":   "voice / audio → text (OpenAI Whisper API)",
+        "tts_skill":          "text → voice (edge-tts, no key)",
+        "image_skill":        "text → image (DALL-E 3 / DALL-E 2)",
+        # Documents
+        "docx_skill":         "Microsoft Word .docx read+create (python-docx)",
+        "xlsx_skill":         "Microsoft Excel .xlsx read+create (openpyxl)",
+        "pdf_skill":          "PDF read+make+md+ocr (pypdf, reportlab, tesseract)",
+        # Web / research
+        "web_search_skill":   "multi-provider web search (Tavily/Serper/DDG)",
+        "news_skill":         "news headlines (Google News RSS)",
+        "wikipedia_skill":    "Wikipedia search & summary (100+ langs)",
+        "arxiv_skill":        "arXiv academic paper search",
+        # Finance
+        "crypto_skill":       "crypto markets (pycoingecko)",
+        "stocks_skill":       "stock quotes (yfinance)",
+        "fx_skill":           "FX / currency exchange (Frankfurter, no key)",
+        # Utilities
+        "github_skill":       "GitHub ops (PyGithub: repos/issues/PRs/releases)",
+        "url_shortener_skill": "URL shortener (16+ providers, no key)",
+        "qr_skill":           "QR code generator (qrcode, no key)",
+        "weather_skill":      "weather forecast (Open-Meteo, no key)",
+        "translation_skill":  "text translation (Google web, 100+ langs)",
+    }
+
     async def cmd_skills(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         from skills.orca_skills import load_all
         loaded = load_all()
-        await u.message.reply_text(f"🧠 Skills ({len(loaded)}):\n" + "\n".join(f"• {k}" for k in loaded))
+        lines = [f"🧠 Skills ({len(loaded)} loaded):"]
+        for name in loaded:
+            desc = self.SKILL_CATALOG.get(name)
+            if desc:
+                lines.append(f"• `{name}` — {desc}")
+            else:
+                lines.append(f"• `{name}`")
+        # Also show catalog entries that haven't been loaded yet.
+        missing = [n for n in self.SKILL_CATALOG if n not in loaded]
+        if missing:
+            lines.append("")
+            lines.append(f"_Not loaded ({len(missing)}):_ " + ", ".join(f"`{n}`" for n in missing))
+        await u.message.reply_text("\n".join(lines))
 
     async def cmd_sync(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         await u.message.reply_text("🔄 Syncing...")
@@ -787,7 +850,7 @@ class OrcaBot:
                 logger.debug(f"memory save (assistant) skipped: {me}")
             await u.message.reply_text(response)
             return
-        # Fallback: echo + command hint (full menu, including the 5 library-backed skills)
+        # Fallback: echo + command hint (full menu, including the 6 new skills)
         fallback = (
             f"Received: {text[:200]}\n\n"
             f"🧠 Brain offline — rule-based mode.\n"
@@ -795,7 +858,12 @@ class OrcaBot:
             f"• /start /status /skills /sync /update /verify\n"
             f"• /exec /token /brain /agent /device\n"
             f"• /tap /swipe /text\n"
-            f"• /gh /crypto /stock /qr /short\n\n"
+            f"Media: /transcribe /say /image\n"
+            f"Docs: /docx /xlsx /pdf (info/text/tables/make/md/ocr)\n"
+            f"Web: /search /news /wiki /arxiv\n"
+            f"Pipelines: /v2e (voice→EN) /research (web+wiki+news)\n"
+            f"Finance: /crypto /stock /fx\n"
+            f"Utils: /gh /qr /short /weather /translate\n\n"
             f"Set LLM_API_KEY or OPENAI_API_KEY in .env to unlock the full brain."
         )
         try:
@@ -1856,6 +1924,227 @@ class OrcaBot:
             await u.message.reply_text(f"❌ {exc}")
         except Exception as exc:  # noqa: BLE001
             await u.message.reply_text(f"❌ {friendly_error(exc)}")
+
+    async def cmd_v2e(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/v2e — Voice → English text pipeline.
+
+        Smart integration of two existing skills:
+          1. transcribe_skill.transcribe() — voice/audio → text
+          2. translation_skill.translate()  — text → English
+
+        Modes:
+          /v2e (reply to a voice or audio message)
+          /v2e <url>     (transcribe a remote URL, then translate)
+          /v2e <lang> <reply-or-url>  (override target language)
+        """
+        from core.middleware import friendly_error
+        from skills import transcribe_skill, translation_skill
+
+        args = c.args or []
+        # Naive arg parsing: if the first arg is a 2-letter code and
+        # the rest is non-empty, treat it as the target language.
+        target = "en"
+        rest = list(args)
+        if rest and len(rest[0]) <= 5 and rest[0].lower() in (
+            "en", "ar", "es", "fr", "de", "ru", "zh", "ja", "hi", "tr",
+            "it", "pt", "ko", "nl", "sv", "pl", "el", "he", "id", "vi",
+        ):
+            target = rest[0].lower()
+            rest = rest[1:]
+
+        # Mode A: reply-to-voice / reply-to-audio.
+        reply = u.message.reply_to_message if u.message else None
+        if reply and (reply.voice or reply.audio):
+            status = None
+            try:
+                status = await u.message.reply_text(
+                    f"🎙 Transcribing + translating to {target.upper()}…"
+                )
+            except Exception:
+                pass
+            tmp_path = await self._transcribe_telegram_file(
+                u, reply.voice or reply.audio,
+                ext=".ogg" if reply.voice else ".mp3",
+            )
+            if not tmp_path:
+                return
+            try:
+                try:
+                    import asyncio
+                    result = await asyncio.to_thread(
+                        transcribe_skill.transcribe, tmp_path,
+                    )
+                    src_text = result.get("text", "").strip()
+                finally:
+                    import os as _os
+                    try:
+                        _os.unlink(tmp_path)
+                    except OSError:
+                        pass
+                if not src_text:
+                    text = "📭 No speech detected"
+                else:
+                    # Skip translation if the source is already target.
+                    detected = (result.get("language") or "unknown").lower()
+                    if detected == target:
+                        translated = src_text
+                    else:
+                        try:
+                            translated = await translation_skill.translate(
+                                src_text, target,
+                            )
+                        except translation_skill.TranslationError as exc:
+                            translated = f"{src_text}\n\n_(translation failed: {exc})_"
+                    card = (
+                        f"🌐 *Voice → {target.upper()}*\n"
+                        f"_Source language: {detected}_\n\n"
+                        f"{translated[:3500]}"
+                    )
+                    text = card
+            except transcribe_skill.TranscribeError as exc:
+                text = f"❌ {exc}"
+            if status:
+                try:
+                    await status.edit_text(text, parse_mode="Markdown")
+                    return
+                except Exception:
+                    pass
+            await u.message.reply_text(text, parse_mode="Markdown")
+            return
+
+        # Mode B: URL.
+        if not rest:
+            await u.message.reply_text(
+                "Usage:\n"
+                f"  /v2e (reply to a voice message)\n"
+                f"  /v2e <url>\n"
+                f"  /v2e <lang> <url>  (override target; default: en)\n"
+                f"_Pipeline: transcribe → translate to {target.upper()}._"
+            )
+            return
+        url = rest[0].strip()
+        if not (url.startswith("http://") or url.startswith("https://")):
+            await u.message.reply_text("⚠️ URL must start with http:// or https://")
+            return
+        import asyncio
+        try:
+            result = await asyncio.to_thread(transcribe_skill.transcribe, url)
+            src_text = result.get("text", "").strip()
+            if not src_text:
+                await u.message.reply_text("📭 No speech detected")
+                return
+            detected = (result.get("language") or "unknown").lower()
+            if detected == target:
+                translated = src_text
+            else:
+                try:
+                    translated = await translation_skill.translate(
+                        src_text, target,
+                    )
+                except translation_skill.TranslationError as exc:
+                    translated = f"{src_text}\n\n_(translation failed: {exc})_"
+            card = (
+                f"🌐 *Voice → {target.upper()}*\n"
+                f"_Source: {detected}_\n\n"
+                f"{translated[:3500]}"
+            )
+            await u.message.reply_text(card, parse_mode="Markdown")
+        except transcribe_skill.TranscribeError as exc:
+            await u.message.reply_text(f"❌ {exc}")
+
+    async def cmd_research(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/research <query> — multi-source research card.
+
+        Smart integration: combines results from three existing skills
+        into one ranked, deduplicated card:
+          1. web_search_skill  (top 3 results)
+          2. wikipedia_skill   (one-line summary if available)
+          3. news_skill        (top 2 related headlines)
+        """
+        from core.middleware import friendly_error
+        from skills import web_search_skill, news_skill
+        try:
+            from skills import wikipedia_skill
+        except ImportError:
+            wikipedia_skill = None  # type: ignore
+
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(
+                "Usage: /research <query>\n"
+                "_Pipelines: web + wiki + news into one card._"
+            )
+            return
+        query = " ".join(args).strip()
+        status = None
+        try:
+            status = await u.message.reply_text(f"🔬 Researching *{query}*…")
+        except Exception:
+            pass
+
+        import asyncio
+
+        async def _web():
+            try:
+                return web_search_skill.search(query, limit=3, timeout=10.0)
+            except web_search_skill.WebSearchError as exc:
+                return {"error": str(exc), "results": []}
+
+        async def _wiki():
+            if wikipedia_skill is None:
+                return None
+            try:
+                # wikipedia_skill.summary(title) — no sentences kwarg;
+                # the function itself trims to ~1200 chars.
+                return await wikipedia_skill.summary(query)
+            except Exception:  # noqa: BLE001
+                return None
+
+        async def _news():
+            try:
+                return await news_skill.search(query, limit=2)
+            except Exception:  # noqa: BLE001
+                return ""
+
+        web_res, wiki_text, news_md = await asyncio.gather(
+            _web(), _wiki(), _news(), return_exceptions=False,
+        )
+
+        lines = [f"🔬 *Research: {query}*", ""]
+
+        if wiki_text:
+            lines.append(f"📖 *Wikipedia summary*")
+            lines.append(wiki_text[:600])
+            lines.append("")
+
+        if web_res and web_res.get("results"):
+            lines.append("🌐 *Web*")
+            for i, r in enumerate(web_res["results"], 1):
+                title = r.get("title") or "(no title)"
+                url = r.get("url") or ""
+                snippet = (r.get("snippet") or "")[:200]
+                lines.append(f"{i}. [{title}]({url})")
+                if snippet:
+                    lines.append(f"   _{snippet}_")
+            lines.append("")
+
+        if news_md:
+            lines.append("📰 *News*")
+            lines.append(news_md[:600])
+
+        if len(lines) == 2:  # only header was added
+            lines.append("📭 No results from any source.")
+
+        out = "\n".join(lines)
+        if status:
+            try:
+                await status.edit_text(out, parse_mode="Markdown",
+                                       disable_web_page_preview=True)
+                return
+            except Exception:
+                pass
+        await u.message.reply_text(out, parse_mode="Markdown",
+                                   disable_web_page_preview=True)
 
     async def cmd_health(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """/health — DB / FS / Network probe."""
