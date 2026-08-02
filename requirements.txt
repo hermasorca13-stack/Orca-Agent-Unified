@@ -22,6 +22,8 @@ Pillow>=10.0.0
 pdfplumber>=0.11.0  # used by skills/pdf_skill.py for table extraction
 pypdf>=4.0.0       # used by skills/pdf_skill.py for text + metadata
 edge-tts>=6.1.10   # used by skills/tts_skill.py for free TTS (no key)
+# 2026-08-02 ADD: Word .docx read/write (consensus 2026 standard for .docx)
+python-docx>=1.1.0 # used by skills/docx_skill.py
 # Note: weather, translation, wikipedia, news, fx, arxiv are all
 # stdlib-only (urllib + xml + json). arxiv is lazy-imported and
 # auto-installs on first use; not pinned to keep requirements minimal.

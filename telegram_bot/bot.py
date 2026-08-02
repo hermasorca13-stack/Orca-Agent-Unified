@@ -60,7 +60,15 @@ class OrcaBot:
         h(CommandHandler("news", self.cmd_news))
         h(CommandHandler("fx", self.cmd_fx))
         h(CommandHandler("arxiv", self.cmd_arxiv))
+        h(CommandHandler("transcribe", self.cmd_transcribe))
+        h(CommandHandler("docx", self.cmd_docx))
         h(CommandHandler("health", self.cmd_health))
+        # Auto-transcribe incoming voice / audio messages (Apple-grade: voice is the
+        # primary input on Telegram per MASTER_PROMPT).
+        h(MessageHandler(filters.VOICE, self.on_voice))
+        h(MessageHandler(filters.AUDIO, self.on_audio))
+        # Auto-read incoming .docx files (reply with text content).
+        h(MessageHandler(filters.Document.ALL, self.on_document))
         # --- ADD: diag, setup, cancel + FSM message router (lowest priority) ---
         h(CommandHandler("diag", self.cmd_diag))
         h(CommandHandler("setup", self.cmd_setup))
@@ -109,6 +117,8 @@ class OrcaBot:
                 BotCommand("news", "News headlines (Google News RSS)"),
                 BotCommand("fx", "Currency exchange (Frankfurter, no key)"),
                 BotCommand("arxiv", "Search arXiv papers"),
+                BotCommand("transcribe", "Voice/audio → text (Whisper API)"),
+                BotCommand("docx", "Read/create .docx (python-docx)"),
                 BotCommand("health", "DB / FS / Network probe"),
                 # 2026-07-29 ADD: diag + setup wizard + cancel FSM
                 BotCommand("diag", "Diagnostics (self-heal report)"),
@@ -989,6 +999,324 @@ class OrcaBot:
         except Exception as e:
             out = friendly_error(e)
         await u.message.reply_text(out, parse_mode="Markdown", disable_web_page_preview=True)
+
+    async def _transcribe_telegram_file(self, u: Update, tg_file, *, ext: str):
+        """Download a Telegram voice/audio file and transcribe it.
+
+        `tg_file` is the PTB Voice or Audio object. `ext` is the filename
+        extension to use for the temp file (`.ogg` for voice, `.mp3` for
+        audio). Sends a friendly card back to the user.
+        """
+        import asyncio
+        import os
+        import tempfile
+        from core.middleware import friendly_error
+        from skills import transcribe_skill
+
+        chat = u.effective_chat
+        # Status message — gets edited in place when done.
+        try:
+            status = await chat.send_message("🎙 Transcribing…")
+        except Exception:
+            status = None
+
+        # 1) Download from Telegram (async, non-blocking).
+        try:
+            file_obj = await tg_file.get_file()
+            data = await file_obj.download_as_bytearray()
+        except Exception as exc:  # noqa: BLE001
+            text = friendly_error(exc)
+            if status:
+                try:
+                    await status.edit_text(f"❌ Download failed: {text}")
+                except Exception:
+                    pass
+            return
+
+        # 2) Write to a temp file (the skill expects a path or URL).
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+                f.write(data)
+                tmp_path = f.name
+
+            # 3) Transcribe in a worker thread (skill is sync, blocks).
+            try:
+                result = await asyncio.to_thread(
+                    transcribe_skill.transcribe, tmp_path
+                )
+                out = transcribe_skill.format_card(result)
+            except transcribe_skill.TranscribeError as exc:
+                out = f"❌ {exc}"
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+        # 4) Reply (edit status if we have it, else send fresh).
+        if status:
+            try:
+                await status.edit_text(out, parse_mode="Markdown")
+                return
+            except Exception:
+                pass
+        await u.message.reply_text(out, parse_mode="Markdown")
+
+    async def cmd_transcribe(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/transcribe — explicit transcription.
+
+        Modes:
+          /transcribe                  → reply-to a voice/audio
+          /transcribe <url>            → transcribe a remote URL
+        """
+        from skills import transcribe_skill
+
+        # Mode 1: reply to a voice / audio message.
+        reply = u.message.reply_to_message if u.message else None
+        if reply:
+            tg_file = reply.voice or reply.audio or reply.video_note
+            if tg_file is not None:
+                ext = ".ogg"
+                if reply.audio and reply.audio.file_name:
+                    import os as _os
+                    ext = _os.path.splitext(reply.audio.file_name)[1] or ".mp3"
+                elif reply.video_note:
+                    ext = ".mp4"
+                await self._transcribe_telegram_file(u, tg_file, ext=ext)
+                return
+            await u.message.reply_text(
+                "⚠️ Reply to a *voice* or *audio* message, or pass a URL.\n"
+                "Usage:\n"
+                "  /transcribe  (reply to a voice)\n"
+                "  /transcribe <url>".replace("`", "")
+            )
+            return
+
+        # Mode 2: URL.
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(
+                "Usage: /transcribe (reply to a voice note)\n"
+                "       /transcribe <url>\n"
+                "_Powered by OpenAI Whisper API._"
+            )
+            return
+        url = args[0].strip()
+        if not (url.startswith("http://") or url.startswith("https://")):
+            await u.message.reply_text("⚠️ URL must start with http:// or https://")
+            return
+
+        import asyncio
+        try:
+            result = await asyncio.to_thread(transcribe_skill.transcribe, url)
+            await u.message.reply_text(
+                transcribe_skill.format_card(result), parse_mode="Markdown"
+            )
+        except transcribe_skill.TranscribeError as exc:
+            await u.message.reply_text(f"❌ {exc}")
+
+    async def on_voice(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """Auto-transcribe any incoming voice note."""
+        if not u.message or not u.message.voice:
+            return
+        await self._transcribe_telegram_file(u, u.message.voice, ext=".ogg")
+
+    async def on_audio(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """Auto-transcribe any incoming audio file."""
+        if not u.message or not u.message.audio:
+            return
+        import os as _os
+        ext = _os.path.splitext(u.message.audio.file_name or "")[1] or ".mp3"
+        await self._transcribe_telegram_file(u, u.message.audio, ext=ext)
+
+    async def _read_docx_from_telegram(self, u: Update, tg_doc) -> str:
+        """Download a Telegram .docx document and extract its text.
+
+        Returns the absolute path of the downloaded temp file.
+        """
+        import os
+        import tempfile
+        from pathlib import Path
+        from core.middleware import friendly_error
+
+        try:
+            file_obj = await tg_doc.get_file()
+            data = await file_obj.download_as_bytearray()
+        except Exception as exc:  # noqa: BLE001
+            text = friendly_error(exc)
+            await u.message.reply_text(f"❌ Download failed: {text}")
+            return ""
+
+        suggested = tg_doc.file_name or "document.docx"
+        ext = Path(suggested).suffix or ".docx"
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+                f.write(data)
+                tmp_path = f.name
+            return tmp_path
+        except Exception as exc:  # noqa: BLE001
+            await u.message.reply_text(f"❌ Could not save: {exc}")
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+            return ""
+
+    async def cmd_docx(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/docx — read or create .docx files.
+
+        Sub-commands:
+          /docx info <path>             → metadata card
+          /docx read <path>             → text body
+          /docx tables <path>           → tables as Markdown
+          /docx create <text>           → create a new .docx, return file
+          /docx append <path> <text>    → append to existing
+          /docx md <markdown>           → Markdown → .docx, return file
+        Or just send a .docx file to the bot to read it.
+        """
+        from core.middleware import friendly_error
+        from skills import docx_skill
+
+        # Mode 0: reply to a .docx document — auto-read.
+        reply = u.message.reply_to_message if u.message else None
+        if reply and reply.document:
+            doc = reply.document
+            suggested = (doc.file_name or "").lower()
+            if not suggested.endswith(".docx"):
+                await u.message.reply_text(
+                    "⚠️ This doesn't look like a .docx file. "
+                    "Send a .docx attachment or use `/docx <op> <path>`."
+                )
+                return
+            tmp_path = await self._read_docx_from_telegram(u, doc)
+            if not tmp_path:
+                return
+            try:
+                try:
+                    meta = docx_skill.info(tmp_path)
+                    text = docx_skill.read(tmp_path, max_chars=3500)
+                finally:
+                    import os as _os
+                    try:
+                        _os.unlink(tmp_path)
+                    except OSError:
+                        pass
+                header = docx_skill.format_info(meta)
+                await u.message.reply_text(
+                    f"{header}\n\n---\n\n{text}", parse_mode="Markdown"
+                )
+            except docx_skill.DocxError as exc:
+                await u.message.reply_text(f"❌ {exc}")
+            return
+
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(
+                "Usage:\n"
+                "  /docx info <path>\n"
+                "  /docx read <path>\n"
+                "  /docx tables <path>\n"
+                "  /docx create <text>\n"
+                "  /docx md <markdown>\n"
+                "Or reply to a .docx file to read it."
+            )
+            return
+        op = args[0].lower()
+        rest = args[1:]
+
+        try:
+            if op == "info":
+                if not rest:
+                    await u.message.reply_text("Usage: /docx info <path>")
+                    return
+                meta = docx_skill.info(rest[0])
+                await u.message.reply_text(
+                    docx_skill.format_info(meta), parse_mode="Markdown"
+                )
+            elif op == "read":
+                if not rest:
+                    await u.message.reply_text("Usage: /docx read <path>")
+                    return
+                text = docx_skill.read(rest[0], max_chars=3500)
+                await u.message.reply_text(f"📄 *{rest[0]}*\n\n{text}", parse_mode="Markdown")
+            elif op == "tables":
+                if not rest:
+                    await u.message.reply_text("Usage: /docx tables <path>")
+                    return
+                t = docx_skill.tables(rest[0])
+                await u.message.reply_text(
+                    docx_skill.format_tables(t), parse_mode="Markdown"
+                )
+            elif op == "create":
+                if not rest:
+                    await u.message.reply_text("Usage: /docx create <text>")
+                    return
+                import os as _os
+                import tempfile
+                body = " ".join(rest)
+                tmp = tempfile.NamedTemporaryFile(suffix=".docx", delete=False)
+                tmp.close()
+                try:
+                    p = docx_skill.create(tmp.name, paragraphs=[body])
+                    await u.message.reply_document(
+                        open(p, "rb"),
+                        filename="orca-document.docx",
+                        caption=f"📄 Created ({_os.path.getsize(p):,} bytes)",
+                    )
+                finally:
+                    try:
+                        _os.unlink(p)
+                    except OSError:
+                        pass
+            elif op == "md":
+                if not rest:
+                    await u.message.reply_text("Usage: /docx md <markdown>")
+                    return
+                import os as _os
+                import tempfile
+                body = " ".join(rest)
+                tmp = tempfile.NamedTemporaryFile(suffix=".docx", delete=False)
+                tmp.close()
+                try:
+                    p = docx_skill.from_markdown(body, tmp.name)
+                    await u.message.reply_document(
+                        open(p, "rb"),
+                        filename="orca-from-markdown.docx",
+                        caption=f"📄 Markdown → Word ({_os.path.getsize(p):,} bytes)",
+                    )
+                finally:
+                    try:
+                        _os.unlink(p)
+                    except OSError:
+                        pass
+            elif op == "append":
+                if len(rest) < 2:
+                    await u.message.reply_text("Usage: /docx append <path> <text>")
+                    return
+                path, body = rest[0], " ".join(rest[1:])
+                docx_skill.append(path, body)
+                await u.message.reply_text(f"✅ Appended to `{path}`")
+            else:
+                await u.message.reply_text(
+                    f"⚠️ Unknown op: {op}. Use info|read|tables|create|md|append."
+                )
+        except docx_skill.DocxError as exc:
+            await u.message.reply_text(f"❌ {exc}")
+        except Exception as exc:  # noqa: BLE001
+            await u.message.reply_text(f"❌ {friendly_error(exc)}")
+
+    async def on_document(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """Auto-read .docx files sent to the bot."""
+        if not u.message or not u.message.document:
+            return
+        name = (u.message.document.file_name or "").lower()
+        if not name.endswith(".docx"):
+            return  # not a .docx — let other handlers / the user deal with it
+        await self.cmd_docx(u, c)
 
     async def cmd_health(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """/health — DB / FS / Network probe."""

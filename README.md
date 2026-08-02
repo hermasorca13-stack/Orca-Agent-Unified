@@ -65,6 +65,20 @@ python orca.py doctor    # engineering checks
     - `/qr <text>`, `/qr ascii <text>`, `/qr svg <text>`
   - `/short` — URL shortener (pyshorteners: 16+ providers)
     - `/short <url>`, `/short multi <url>`, `/short list`, `/short expand <url> <provider>`
+- **Voice / transcription (added 2026-08-02)**:
+  - `/transcribe` — voice/audio → text (OpenAI Whisper API). Auto-transcribes any voice note sent to the bot.
+    - `/transcribe` (reply to a voice/audio message)
+    - `/transcribe <url>` (transcribe a remote audio URL)
+  - Incoming voice notes and audio files are auto-transcribed. Requires `OPENAI_API_KEY` in `.env`.
+- **Documents (added 2026-08-02)**:
+  - `/docx` — read & create Microsoft Word files (python-docx). Auto-reads any `.docx` sent to the bot.
+    - `/docx info <path>` — metadata (title, author, paragraphs, tables, size)
+    - `/docx read <path>` — full text body (with tables appended as `| ` rows)
+    - `/docx tables <path>` — tables as Markdown card
+    - `/docx create <text>` — create a new `.docx` from text, sent back as a file
+    - `/docx md <markdown>` — best-effort Markdown → Word (headings, bullets, numbered, code blocks)
+    - `/docx append <path> <text>` — append paragraphs to an existing file
+  - Incoming `.docx` files are auto-read and replied with text content. Requires `python-docx` (already in `requirements.txt`).
 
 ## Engineering Rules Applied
 - **Zero duplication**: each module has a single canonical implementation
@@ -73,4 +87,5 @@ python orca.py doctor    # engineering checks
 - **Package `__init__.py`**: explicit re-exports, no implicit name collisions
 - **Config single-source**: `core/config.py` is the only env reader
 - **Doctor self-check**: detects duplicate filenames, oversized files, broken imports
-- **Library-first**: 5 skills import battle-tested libraries (PyGithub, yfinance, pycoingecko, qrcode, pyshorteners) — no raw API duplication
+- **Library-first**: skills import battle-tested libraries (PyGithub, yfinance, pycoingecko, qrcode, pyshorteners, openai/whisper, python-docx) — no raw API duplication
+- **Voice-first**: voice notes are the primary input (per MASTER_PROMPT); `transcribe_skill` turns any voice message into text and feeds downstream skills (summarize, translate, save, search).

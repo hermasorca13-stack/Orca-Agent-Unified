@@ -70,3 +70,7 @@ secrets/
 
 data/*
 !data/.gitkeep
+
+# dev/ scratch scripts (smoke tests, run helpers)
+.dev/
+
