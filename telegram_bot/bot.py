@@ -65,6 +65,8 @@ class OrcaBot:
         h(CommandHandler("xlsx", self.cmd_xlsx))
         h(CommandHandler("search", self.cmd_search))
         h(CommandHandler("web", self.cmd_search))  # alias
+        h(CommandHandler("image", self.cmd_image))
+        h(CommandHandler("img", self.cmd_image))  # alias
         h(CommandHandler("health", self.cmd_health))
         # Auto-transcribe incoming voice / audio messages (Apple-grade: voice is the
         # primary input on Telegram per MASTER_PROMPT).
@@ -124,6 +126,7 @@ class OrcaBot:
                 BotCommand("docx", "Read/create .docx (python-docx)"),
                 BotCommand("xlsx", "Read/create .xlsx (openpyxl)"),
                 BotCommand("search", "Web search (Tavily/Serper/DDG)"),
+                BotCommand("image", "Generate image from prompt (DALL-E)"),
                 BotCommand("health", "DB / FS / Network probe"),
                 # 2026-07-29 ADD: diag + setup wizard + cancel FSM
                 BotCommand("diag", "Diagnostics (self-heal report)"),
@@ -1354,6 +1357,131 @@ class OrcaBot:
                 except OSError:
                     pass
             return ""
+
+    async def cmd_image(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/image <prompt>  — generate an image with DALL-E 3.
+
+        Optional flags (after the prompt):
+          -m <model>  dall-e-3 (default) | dall-e-2
+          -s <size>   1024x1024 (default) | 1024x1792 | 1792x1024
+          -q <qual>   standard (default) | hd
+        """
+        import asyncio
+        from core.middleware import friendly_error
+        from skills import image_skill
+
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(
+                "Usage:\n"
+                "  /image <prompt>\n"
+                "  /image <prompt> -m dall-e-3 -s 1792x1024 -q hd\n"
+                "_Costs ~$0.04–$0.12 per image on DALL-E 3._"
+            )
+            return
+
+        # Naive tail-flag parser (prompt first, flags at the end).
+        model = "dall-e-3"
+        size = "1024x1024"
+        quality = "standard"
+        cut = len(args)
+        i = 0
+        while i < len(args):
+            a = args[i]
+            if a in ("-m", "--model") and i + 1 < len(args):
+                model = args[i + 1]
+                i += 2
+            elif a in ("-s", "--size") and i + 1 < len(args):
+                size = args[i + 1]
+                i += 2
+            elif a in ("-q", "--quality") and i + 1 < len(args):
+                quality = args[i + 1]
+                i += 2
+            else:
+                cut = i
+                break
+        prompt = " ".join(args[:cut]).strip()
+        if not prompt:
+            await u.message.reply_text("⚠️ Empty prompt")
+            return
+
+        # Send a "generating..." status first.
+        try:
+            status = await u.message.reply_text(
+                f"🎨 Generating `{size}` image with `{model}`…"
+            )
+        except Exception:
+            status = None
+
+        # Run the blocking SDK call in a worker thread.
+        try:
+            result = await asyncio.to_thread(
+                image_skill.generate,
+                prompt,
+                model=model, size=size, quality=quality,
+            )
+        except image_skill.ImageGenError as exc:
+            text = f"❌ {exc}"
+            if status:
+                try:
+                    await status.edit_text(text)
+                    return
+                except Exception:
+                    pass
+            await u.message.reply_text(text)
+            return
+        except Exception as exc:  # noqa: BLE001
+            text = f"❌ {friendly_error(exc)}"
+            if status:
+                try:
+                    await status.edit_text(text)
+                    return
+                except Exception:
+                    pass
+            await u.message.reply_text(text)
+            return
+
+        # Save to a temp file and send as a photo.
+        import os as _os
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        tmp.close()
+        try:
+            from skills import image_skill as _im
+            path = _im.generate_and_save(
+                prompt,
+                out_path=tmp.name,
+                model=model, size=size, quality=quality,
+            )
+        except image_skill.ImageGenError as exc:
+            text = f"❌ {exc}"
+            if status:
+                try:
+                    await status.edit_text(text)
+                except Exception:
+                    pass
+                return
+            await u.message.reply_text(text)
+            return
+
+        try:
+            caption = image_skill.format_card(result)
+            with open(path, "rb") as f:
+                await u.message.reply_photo(
+                    photo=f,
+                    filename="orca-image.png",
+                    caption=caption[:1024],
+                )
+            if status:
+                try:
+                    await status.delete()
+                except Exception:
+                    pass
+        finally:
+            try:
+                _os.unlink(path)
+            except OSError:
+                pass
 
     async def cmd_search(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """/search <query>  — multi-provider web search.

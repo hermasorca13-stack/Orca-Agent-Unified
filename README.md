@@ -94,6 +94,12 @@ python orca.py doctor    # engineering checks
     - `/search <query> -p tavily` — force a specific provider
     - `/search <query> -t 30` — custom timeout
   - `TAVILY_API_KEY` is recommended (best results). `SERPER_API_KEY` is a backup. Falls back to DuckDuckGo (no key, limited). Requires `tavily-python` (already in `requirements.txt`).
+  - `/image` — text-to-image via DALL-E 3 (or DALL-E 2). Closes the multimodal loop with `/transcribe`.
+    - `/image <prompt>` — generate a 1024×1024 standard image
+    - `/image <prompt> -s 1792x1024` — landscape
+    - `/image <prompt> -s 1024x1792 -q hd` — portrait, HD quality
+    - `/image <prompt> -m dall-e-2` — cheaper, legacy model
+  - Requires `OPENAI_API_KEY` in `.env` (already used by `/transcribe`). Cost: ~$0.04 (DALL-E 3 standard 1024²), ~$0.08 (HD), ~$0.12 (1792²).
 
 ## Engineering Rules Applied
 - **Zero duplication**: each module has a single canonical implementation
