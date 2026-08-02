@@ -100,6 +100,14 @@ python orca.py doctor    # engineering checks
     - `/image <prompt> -s 1024x1792 -q hd` — portrait, HD quality
     - `/image <prompt> -m dall-e-2` — cheaper, legacy model
   - Requires `OPENAI_API_KEY` in `.env` (already used by `/transcribe`). Cost: ~$0.04 (DALL-E 3 standard 1024²), ~$0.08 (HD), ~$0.12 (1792²).
+- **PDF (extended 2026-08-02)**: `/pdf` now writes too (text → PDF, markdown → PDF) and can OCR scanned pages.
+    - `/pdf info <path>` — metadata (unchanged)
+    - `/pdf text <path> [page]` — extract text (unchanged)
+    - `/pdf tables <path> [page]` — extract tables (unchanged)
+    - `/pdf make <text>` — generate a PDF from plain text, returned as a file
+    - `/pdf md <markdown>` — best-effort Markdown → PDF (headings, bullets, code blocks, inline bold/italic/code)
+    - `/pdf ocr <path> [page]` — OCR a scanned PDF page; requires Tesseract + poppler on the system
+  - Generation uses `reportlab` (no native deps). OCR uses `pdf2image` + `pytesseract` (already in `requirements.txt`).
 
 ## Engineering Rules Applied
 - **Zero duplication**: each module has a single canonical implementation

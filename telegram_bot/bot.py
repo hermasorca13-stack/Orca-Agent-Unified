@@ -855,44 +855,142 @@ class OrcaBot:
         args = c.args or []
         if not args:
             await u.message.reply_text(
-                "Usage: /pdf info <path>\n"
-                "       /pdf text <path> [page]\n"
-                "       /pdf tables <path> [page]"
+                "Usage:\n"
+                "  /pdf info <path>            — metadata\n"
+                "  /pdf text <path> [page]     — extract text\n"
+                "  /pdf tables <path> [page]   — extract tables\n"
+                "  /pdf make <text>            — text → PDF (returned as file)\n"
+                "  /pdf md <markdown>          — markdown → PDF\n"
+                "  /pdf ocr <path> [page]      — OCR scanned PDF (needs tesseract)"
             )
             return
         op = args[0].lower()
-        path = args[1] if len(args) > 1 else ""
+        rest = args[1:]
         try:
             if op == "info":
-                meta = pdf_skill.info(path)
+                if not rest:
+                    await u.message.reply_text("Usage: /pdf info <path>")
+                    return
+                meta = pdf_skill.info(rest[0])
                 out = (
-                    f"📄 *{meta.get('title') or path}*\n"
+                    f"📄 *{meta.get('title') or rest[0]}*\n"
                     f"Pages: {meta.get('pages')}\n"
                     f"Author: {meta.get('author') or '—'}\n"
                     f"Size: {meta.get('size_bytes')} bytes"
                 )
+                await u.message.reply_text(out, parse_mode="Markdown")
             elif op == "text":
-                page = int(args[2]) if len(args) > 2 else None
-                body = pdf_skill.text(path, page=page)
+                if not rest:
+                    await u.message.reply_text("Usage: /pdf text <path> [page]")
+                    return
+                page = int(rest[1]) if len(rest) > 1 else None
+                body = pdf_skill.text(rest[0], page=page)
                 out = body[:3500] + ("\n…[truncated]" if len(body) > 3500 else "")
+                await u.message.reply_text(out, parse_mode="Markdown")
             elif op == "tables":
-                page = int(args[2]) if len(args) > 2 else None
-                tables = pdf_skill.tables(path, page=page)
-                if not tables:
+                if not rest:
+                    await u.message.reply_text("Usage: /pdf tables <path> [page]")
+                    return
+                page = int(rest[1]) if len(rest) > 1 else None
+                t = pdf_skill.tables(rest[0], page=page)
+                if not t:
                     out = "📭 No tables found on that page"
                 else:
-                    lines = [f"📊 {len(tables)} table(s) found", ""]
-                    for i, t in enumerate(tables[:3], 1):
-                        lines.append(f"*Table {i}* ({len(t)} rows)")
-                        for row in t[:5]:
+                    lines = [f"📊 {len(t)} table(s) found", ""]
+                    for i, tb in enumerate(t[:3], 1):
+                        lines.append(f"*Table {i}* ({len(tb)} rows)")
+                        for row in tb[:5]:
                             lines.append(" | ".join(row))
                         lines.append("")
                     out = "\n".join(lines)
+                await u.message.reply_text(out, parse_mode="Markdown")
+            elif op == "make":
+                # Text → PDF; the rest of the message is the body.
+                if not rest:
+                    await u.message.reply_text("Usage: /pdf make <text>")
+                    return
+                import os as _os
+                import tempfile
+                body = " ".join(rest)
+                tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+                tmp.close()
+                try:
+                    p = pdf_skill.to_pdf(body, tmp.name)
+                    await u.message.reply_document(
+                        open(p, "rb"),
+                        filename="orca-text.pdf",
+                        caption=(
+                            f"📄 Generated ({_os.path.getsize(p):,} bytes) — "
+                            f"{len(body):,} chars"
+                        ),
+                    )
+                finally:
+                    try:
+                        _os.unlink(p)
+                    except OSError:
+                        pass
+            elif op == "md":
+                # Markdown → PDF.
+                if not rest:
+                    await u.message.reply_text("Usage: /pdf md <markdown>")
+                    return
+                import os as _os
+                import tempfile
+                body = " ".join(rest)
+                tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+                tmp.close()
+                try:
+                    p = pdf_skill.markdown_to_pdf(body, tmp.name)
+                    await u.message.reply_document(
+                        open(p, "rb"),
+                        filename="orca-from-markdown.pdf",
+                        caption=(
+                            f"📄 Markdown → PDF "
+                            f"({_os.path.getsize(p):,} bytes)"
+                        ),
+                    )
+                finally:
+                    try:
+                        _os.unlink(p)
+                    except OSError:
+                        pass
+            elif op == "ocr":
+                # OCR a scanned PDF.
+                if not rest:
+                    await u.message.reply_text(
+                        "Usage: /pdf ocr <path> [page]\n"
+                        "Requires Tesseract + pdf2image on the system."
+                    )
+                    return
+                page = int(rest[1]) if len(rest) > 1 else None
+                status = None
+                try:
+                    status = await u.message.reply_text(
+                        "🔍 OCR in progress… (can be slow on long docs)"
+                    )
+                except Exception:
+                    status = None
+                text = pdf_skill.ocr(rest[0], page=page)
+                if not text:
+                    out = "📭 OCR returned no text"
+                else:
+                    out = text[:3500]
+                    if len(text) > 3500:
+                        out += "\n…[truncated]"
+                if status:
+                    try:
+                        await status.edit_text(out, parse_mode=None)
+                        return
+                    except Exception:
+                        pass
+                await u.message.reply_text(out)
             else:
-                out = f"⚠️ Unknown op: {op}. Use info|text|tables."
+                await u.message.reply_text(
+                    f"⚠️ Unknown op: {op}. "
+                    f"Use info|text|tables|make|md|ocr."
+                )
         except Exception as e:
-            out = friendly_error(e)
-        await u.message.reply_text(out, parse_mode="Markdown")
+            await u.message.reply_text(f"❌ {friendly_error(e)}")
 
     async def cmd_wiki(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         from core.middleware import friendly_error
