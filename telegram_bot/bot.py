@@ -62,6 +62,7 @@ class OrcaBot:
         h(CommandHandler("arxiv", self.cmd_arxiv))
         h(CommandHandler("transcribe", self.cmd_transcribe))
         h(CommandHandler("docx", self.cmd_docx))
+        h(CommandHandler("xlsx", self.cmd_xlsx))
         h(CommandHandler("health", self.cmd_health))
         # Auto-transcribe incoming voice / audio messages (Apple-grade: voice is the
         # primary input on Telegram per MASTER_PROMPT).
@@ -119,6 +120,7 @@ class OrcaBot:
                 BotCommand("arxiv", "Search arXiv papers"),
                 BotCommand("transcribe", "Voice/audio → text (Whisper API)"),
                 BotCommand("docx", "Read/create .docx (python-docx)"),
+                BotCommand("xlsx", "Read/create .xlsx (openpyxl)"),
                 BotCommand("health", "DB / FS / Network probe"),
                 # 2026-07-29 ADD: diag + setup wizard + cancel FSM
                 BotCommand("diag", "Diagnostics (self-heal report)"),
@@ -1310,13 +1312,252 @@ class OrcaBot:
             await u.message.reply_text(f"❌ {friendly_error(exc)}")
 
     async def on_document(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
-        """Auto-read .docx files sent to the bot."""
+        """Auto-read .docx or .xlsx files sent to the bot."""
         if not u.message or not u.message.document:
             return
         name = (u.message.document.file_name or "").lower()
-        if not name.endswith(".docx"):
-            return  # not a .docx — let other handlers / the user deal with it
-        await self.cmd_docx(u, c)
+        if name.endswith(".docx"):
+            await self.cmd_docx(u, c)
+        elif name.endswith(".xlsx") or name.endswith(".xlsm"):
+            await self.cmd_xlsx(u, c)
+
+    async def _read_xlsx_from_telegram(self, u: Update, tg_doc) -> str:
+        """Download a Telegram .xlsx document to a temp file. Returns path."""
+        import os
+        import tempfile
+        from pathlib import Path
+        from core.middleware import friendly_error
+
+        try:
+            file_obj = await tg_doc.get_file()
+            data = await file_obj.download_as_bytearray()
+        except Exception as exc:  # noqa: BLE001
+            await u.message.reply_text(f"❌ Download failed: {friendly_error(exc)}")
+            return ""
+
+        suggested = tg_doc.file_name or "workbook.xlsx"
+        ext = Path(suggested).suffix or ".xlsx"
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+                f.write(data)
+                tmp_path = f.name
+            return tmp_path
+        except Exception as exc:  # noqa: BLE001
+            await u.message.reply_text(f"❌ Could not save: {exc}")
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+            return ""
+
+    async def cmd_xlsx(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/xlsx — read or create .xlsx files.
+
+        Sub-commands:
+          /xlsx info <path>              → workbook metadata
+          /xlsx sheets <path>            → list sheet names
+          /xlsx read <path> [sheet]      → first 25 rows as Markdown table
+          /xlsx cell <path> <sheet> <ref> → single cell value (e.g. B2)
+          /xlsx create <h1,h2,...> | <v1,v2,...> ... → create a new .xlsx
+          /xlsx append <path> <sheet> <v1,v2,...>   → append a row
+          /xlsx set <path> <sheet> <ref> <value>     → write one cell
+        Or just send a .xlsx / .xlsm file to the bot to read it.
+        """
+        from core.middleware import friendly_error
+        from skills import xlsx_skill
+
+        # Mode 0: reply-to or attachment .xlsx → auto-read first sheet.
+        reply = u.message.reply_to_message if u.message else None
+        incoming_doc = None
+        if reply and reply.document:
+            incoming_doc = reply.document
+        elif u.message and u.message.document:
+            doc = u.message.document
+            name = (doc.file_name or "").lower()
+            if name.endswith(".xlsx") or name.endswith(".xlsm"):
+                incoming_doc = doc
+
+        if incoming_doc is not None:
+            tmp_path = await self._read_xlsx_from_telegram(u, incoming_doc)
+            if not tmp_path:
+                return
+            try:
+                try:
+                    meta = xlsx_skill.info(tmp_path)
+                    data = xlsx_skill.read(tmp_path, max_rows=25)
+                finally:
+                    import os as _os
+                    try:
+                        _os.unlink(tmp_path)
+                    except OSError:
+                        pass
+                header = xlsx_skill.format_info(meta)
+                table = xlsx_skill.format_table(
+                    data["headers"], data["rows"],
+                    sheet_name=data["sheet_name"],
+                    truncated=data["truncated"],
+                    max_rows=25,
+                )
+                await u.message.reply_text(
+                    f"{header}\n\n{table}", parse_mode="Markdown"
+                )
+            except xlsx_skill.XlsxError as exc:
+                await u.message.reply_text(f"❌ {exc}")
+            return
+
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(
+                "Usage:\n"
+                "  /xlsx info <path>\n"
+                "  /xlsx sheets <path>\n"
+                "  /xlsx read <path> [sheet]\n"
+                "  /xlsx cell <path> <sheet> <ref>\n"
+                "  /xlsx create <h1,h2,h3> | <v1,v2,v3> | ...\n"
+                "  /xlsx append <path> <sheet> <v1,v2,...>\n"
+                "  /xlsx set <path> <sheet> <ref> <value>\n"
+                "Or send a .xlsx file to the bot to read it."
+            )
+            return
+        op = args[0].lower()
+        rest = args[1:]
+
+        try:
+            if op == "info":
+                if not rest:
+                    await u.message.reply_text("Usage: /xlsx info <path>")
+                    return
+                meta = xlsx_skill.info(rest[0])
+                await u.message.reply_text(
+                    xlsx_skill.format_info(meta), parse_mode="Markdown"
+                )
+            elif op == "sheets":
+                if not rest:
+                    await u.message.reply_text("Usage: /xlsx sheets <path>")
+                    return
+                sheets = xlsx_skill.list_sheets(rest[0])
+                await u.message.reply_text(
+                    "📋 " + "\n".join(f"• `{s}`" for s in sheets)
+                )
+            elif op == "read":
+                if not rest:
+                    await u.message.reply_text("Usage: /xlsx read <path> [sheet]")
+                    return
+                path = rest[0]
+                sheet = rest[1] if len(rest) > 1 else None
+                # sheet can be a name or an int.
+                if sheet is not None:
+                    try:
+                        sheet = int(sheet)
+                    except ValueError:
+                        pass
+                data = xlsx_skill.read(path, sheet=sheet, max_rows=25)
+                await u.message.reply_text(
+                    xlsx_skill.format_table(
+                        data["headers"], data["rows"],
+                        sheet_name=data["sheet_name"],
+                        truncated=data["truncated"],
+                        max_rows=25,
+                    ),
+                    parse_mode="Markdown",
+                )
+            elif op == "cell":
+                if len(rest) < 3:
+                    await u.message.reply_text(
+                        "Usage: /xlsx cell <path> <sheet> <ref>  (e.g. B2)"
+                    )
+                    return
+                path, sheet, ref = rest[0], rest[1], rest[2]
+                # sheet can be a name or an int.
+                try:
+                    sheet_i = int(sheet)
+                    sheet = sheet_i
+                except ValueError:
+                    pass
+                value = xlsx_skill.read_cell(path, sheet, ref)
+                await u.message.reply_text(
+                    f"📊 `{ref}` on sheet `{sheet}` → `{value!r}`"
+                )
+            elif op == "create":
+                if not rest:
+                    await u.message.reply_text(
+                        "Usage: /xlsx create <h1,h2,h3> | <v1,v2,v3> | ..."
+                    )
+                    return
+                import os as _os
+                import tempfile
+                # Each "|" separates a row. First row is headers.
+                raw = " ".join(rest)
+                rows_raw = [r.strip() for r in raw.split("|") if r.strip()]
+                if not rows_raw:
+                    await u.message.reply_text("⚠️ No rows given")
+                    return
+                def split_row(s: str) -> list[str]:
+                    return [c.strip() for c in s.split(",")]
+                parsed = [split_row(r) for r in rows_raw]
+                headers = parsed[0]
+                data = parsed[1:] if len(parsed) > 1 else []
+                tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+                tmp.close()
+                try:
+                    p = xlsx_skill.create(tmp.name, headers=headers, data=data)
+                    await u.message.reply_document(
+                        open(p, "rb"),
+                        filename="orca-workbook.xlsx",
+                        caption=(
+                            f"📊 Created ({_os.path.getsize(p):,} bytes) — "
+                            f"{len(data)} data row(s), {len(headers)} col(s)"
+                        ),
+                    )
+                finally:
+                    try:
+                        _os.unlink(p)
+                    except OSError:
+                        pass
+            elif op == "append":
+                if len(rest) < 3:
+                    await u.message.reply_text(
+                        "Usage: /xlsx append <path> <sheet> <v1,v2,...>"
+                    )
+                    return
+                path, sheet = rest[0], rest[1]
+                vals = [c.strip() for c in " ".join(rest[2:]).split(",") if c.strip()]
+                added = xlsx_skill.append_rows(path, sheet, [vals])
+                await u.message.reply_text(
+                    f"✅ Appended {added} row(s) to `{sheet}` in `{path}`"
+                )
+            elif op == "set":
+                if len(rest) < 4:
+                    await u.message.reply_text(
+                        "Usage: /xlsx set <path> <sheet> <ref> <value>"
+                    )
+                    return
+                path, sheet, ref = rest[0], rest[1], rest[2]
+                value = " ".join(rest[3:])
+                # Try to coerce simple types.
+                try:
+                    value = int(value)
+                except ValueError:
+                    try:
+                        value = float(value)
+                    except ValueError:
+                        if value.lower() in ("true", "false"):
+                            value = value.lower() == "true"
+                xlsx_skill.set_cell(path, sheet, ref, value)
+                await u.message.reply_text(
+                    f"✅ Set `{sheet}!{ref}` = `{value!r}`"
+                )
+            else:
+                await u.message.reply_text(
+                    f"⚠️ Unknown op: {op}. "
+                    f"Use info|sheets|read|cell|create|append|set."
+                )
+        except xlsx_skill.XlsxError as exc:
+            await u.message.reply_text(f"❌ {exc}")
+        except Exception as exc:  # noqa: BLE001
+            await u.message.reply_text(f"❌ {friendly_error(exc)}")
 
     async def cmd_health(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """/health — DB / FS / Network probe."""

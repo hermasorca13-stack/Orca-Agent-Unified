@@ -79,6 +79,15 @@ python orca.py doctor    # engineering checks
     - `/docx md <markdown>` — best-effort Markdown → Word (headings, bullets, numbered, code blocks)
     - `/docx append <path> <text>` — append paragraphs to an existing file
   - Incoming `.docx` files are auto-read and replied with text content. Requires `python-docx` (already in `requirements.txt`).
+  - `/xlsx` — read & create Microsoft Excel files (openpyxl). Auto-reads any `.xlsx`/`.xlsm` sent to the bot.
+    - `/xlsx info <path>` — workbook metadata (sheets, cells, creator, modified)
+    - `/xlsx sheets <path>` — list of sheet names
+    - `/xlsx read <path> [sheet]` — first 25 rows of a sheet as a Markdown table
+    - `/xlsx cell <path> <sheet> <ref>` — single cell value (e.g. `B2`)
+    - `/xlsx create <h1,h2,h3> | <v1,v2,v3> | ...` — create a new `.xlsx`, returned as a file
+    - `/xlsx append <path> <sheet> <v1,v2,...>` — append a row
+    - `/xlsx set <path> <sheet> <ref> <value>` — write a single cell (int / float / bool auto-detected)
+  - Incoming `.xlsx`/`.xlsm` files are auto-read and replied with a Markdown table of the first sheet. Requires `openpyxl` (already in `requirements.txt`).
 
 ## Engineering Rules Applied
 - **Zero duplication**: each module has a single canonical implementation
@@ -87,5 +96,5 @@ python orca.py doctor    # engineering checks
 - **Package `__init__.py`**: explicit re-exports, no implicit name collisions
 - **Config single-source**: `core/config.py` is the only env reader
 - **Doctor self-check**: detects duplicate filenames, oversized files, broken imports
-- **Library-first**: skills import battle-tested libraries (PyGithub, yfinance, pycoingecko, qrcode, pyshorteners, openai/whisper, python-docx) — no raw API duplication
+- **Library-first**: skills import battle-tested libraries (PyGithub, yfinance, pycoingecko, qrcode, pyshorteners, openai/whisper, python-docx, openpyxl) — no raw API duplication
 - **Voice-first**: voice notes are the primary input (per MASTER_PROMPT); `transcribe_skill` turns any voice message into text and feeds downstream skills (summarize, translate, save, search).
