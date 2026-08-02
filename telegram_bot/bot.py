@@ -68,6 +68,8 @@ class OrcaBot:
         h(CommandHandler("web", self.cmd_search))  # alias
         h(CommandHandler("image", self.cmd_image))
         h(CommandHandler("img", self.cmd_image))  # alias
+        # --- EFI-OS external tool wrapper (additive) ---
+        h(CommandHandler("efi", self.cmd_efi))
         # --- Smart integration: cross-skill pipelines (additive) ---
         h(CommandHandler("v2e", self.cmd_v2e))
         h(CommandHandler("research", self.cmd_research))
@@ -131,6 +133,7 @@ class OrcaBot:
                 BotCommand("xlsx", "Read/create .xlsx (openpyxl)"),
                 BotCommand("search", "Web search (Tavily/Serper/DDG)"),
                 BotCommand("image", "Generate image from prompt (DALL-E)"),
+                BotCommand("efi", "EFI-OS: local evidence + RAG + analysis (no API keys)"),
                 BotCommand("v2e", "Voice → English (transcribe + translate pipeline)"),
                 BotCommand("research", "Multi-source research card (web+wiki+news)"),
                 BotCommand("health", "DB / FS / Network probe"),
@@ -228,6 +231,7 @@ class OrcaBot:
         "qr_skill":           "QR code generator (qrcode, no key)",
         "weather_skill":      "weather forecast (Open-Meteo, no key)",
         "translation_skill":  "text translation (Google web, 100+ langs)",
+        "efi_os_skill":       "EFI-OS wrapper — local evidence + RAG + analysis (no API keys)",
     }
 
     async def cmd_skills(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -2145,6 +2149,156 @@ class OrcaBot:
                 pass
         await u.message.reply_text(out, parse_mode="Markdown",
                                    disable_web_page_preview=True)
+
+    async def cmd_efi(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/efi — wrapper around the bundled EFI-OS tool.
+
+        Sub-commands:
+          /efi capabilities                 — show the 18-capability matrix
+          /efi self-test                    — run the 19 bundled tests
+          /efi research <query>             — local RAG research
+          /efi analyze <subject>            — engineering analysis
+          /efi compare <sub1> <sub2> ...    — compare subjects
+          /efi ingest <subject> <path>      — ingest a local file
+          /efi help                         — show this help
+
+        EFI-OS uses NO external API keys. Everything runs locally on
+        the Orca bot's host. The wrapper at skills/efi_os_skill.py
+        shells out to tools/EFI_OS.py and verifies its SHA-256 on
+        import.
+        """
+        from core.middleware import friendly_error
+        from skills import efi_os_skill
+
+        args = c.args or []
+        if not args or args[0].lower() in ("help", "-h", "--help"):
+            await u.message.reply_text(
+                "EFI-OS wrapper — local evidence + RAG + analysis.\n"
+                "Uses NO API keys; all data stays on the bot host.\n\n"
+                "Sub-commands:\n"
+                "  /efi capabilities           — show 17-capability matrix\n"
+                "  /efi self-test              — run the 19 bundled tests\n"
+                "  /efi research <query>       — local RAG research\n"
+                "  /efi analyze <subject>      — engineering analysis\n"
+                "  /efi compare <a> <b> [...]  — compare subjects\n"
+                "  /efi ingest <subject> <path>— ingest a local file\n"
+                "  /efi help                   — this message"
+            )
+            return
+
+        sub = args[0].lower()
+        rest = args[1:]
+
+        try:
+            if sub == "capabilities":
+                cap = efi_os_skill.capabilities()
+                # Send a compact card; full matrix is large.
+                summary = (
+                    f"🛠 *EFI-OS capabilities* ({len(cap.get('capabilities', {}))} items)\n"
+                    f"_service: {cap.get('service')} • "
+                    f"single file: {cap.get('single_file')} • "
+                    f"keys required: {cap.get('external_api_keys_required')}_\n\n"
+                )
+                for i, (k, v) in enumerate(
+                        (cap.get('capabilities') or {}).items(), 1):
+                    summary += f"`{i:02d}` *{k}*\n     _{v}_\n"
+                # Telegram message cap is 4096 chars; truncate safely.
+                if len(summary) > 3800:
+                    summary = summary[:3800] + "\n…[truncated]"
+                await u.message.reply_text(summary, parse_mode="Markdown")
+            elif sub == "self-test":
+                status = await u.message.reply_text(
+                    "🧪 Running EFI-OS self-tests (can take a minute)…"
+                )
+                st = efi_os_skill.self_test()
+                out = (
+                    f"🧪 *EFI-OS self-test*\n"
+                    f"Total: {st['total']}  •  ok: {st['ok']}  •  "
+                    f"failed: {st['failed']}  •  skipped: {st['skipped']}\n"
+                    f"Return code: {st['returncode']}\n"
+                )
+                # List failing tests if any.
+                fails = [d for d in st["details"]
+                         if d["status"] in ("FAIL", "ERROR")]
+                if fails:
+                    out += "\nFailures:\n"
+                    for d in fails[:10]:
+                        out += f"  • {d['suite']}::{d['name']} → {d['status']}\n"
+                if status:
+                    try:
+                        await status.edit_text(out, parse_mode="Markdown")
+                        return
+                    except Exception:
+                        pass
+                await u.message.reply_text(out, parse_mode="Markdown")
+            elif sub == "research":
+                if not rest:
+                    await u.message.reply_text("Usage: /efi research <query>")
+                    return
+                query = " ".join(rest)
+                result = efi_os_skill.research(query)
+                await u.message.reply_text(
+                    f"🔬 *EFI-OS research*\n\n```\n"
+                    f"{json.dumps(result, indent=2)[:3500]}\n```",
+                    parse_mode="Markdown",
+                )
+            elif sub == "analyze":
+                if not rest:
+                    await u.message.reply_text(
+                        "Usage: /efi analyze <subject> [kind1,kind2,...]"
+                    )
+                    return
+                subject = rest[0]
+                kinds = rest[1].split(",") if len(rest) > 1 else None
+                result = efi_os_skill.analyze(subject, kinds=kinds)
+                await u.message.reply_text(
+                    f"🧠 *EFI-OS analyze: {subject}*\n\n```\n"
+                    f"{json.dumps(result, indent=2)[:3500]}\n```",
+                    parse_mode="Markdown",
+                )
+            elif sub == "compare":
+                if len(rest) < 2:
+                    await u.message.reply_text(
+                        "Usage: /efi compare <sub1> <sub2> [...]"
+                    )
+                    return
+                result = efi_os_skill.compare(rest)
+                await u.message.reply_text(
+                    f"⚖️ *EFI-OS compare*\n\n```\n"
+                    f"{json.dumps(result, indent=2)[:3500]}\n```",
+                    parse_mode="Markdown",
+                )
+            elif sub == "ingest":
+                if len(rest) < 2:
+                    await u.message.reply_text(
+                        "Usage: /efi ingest <subject> <local-path> "
+                        "[type=interview|paper|patent|article|social_post|...]"
+                    )
+                    return
+                subject = rest[0]
+                path = rest[1]
+                source_type = rest[2] if len(rest) > 2 else "article"
+                result = efi_os_skill.ingest_file(subject, path, source_type)
+                await u.message.reply_text(
+                    f"📥 *EFI-OS ingest*\nSubject: `{subject}`\n"
+                    f"Path: `{path}`\nType: `{source_type}`\n\n```\n"
+                    f"{json.dumps(result, indent=2)[:3500]}\n```",
+                    parse_mode="Markdown",
+                )
+            else:
+                await u.message.reply_text(
+                    f"⚠️ Unknown EFI-OS subcommand: {sub!r}. "
+                    f"Try /efi help."
+                )
+        except efi_os_skill.EFIOSTamperedError as exc:
+            await u.message.reply_text(
+                f"⛔ *EFI-OS integrity check failed*\n\n{exc}\n\n"
+                f"Refusing to run a tampered or out-of-date binary."
+            )
+        except efi_os_skill.EFIOSError as exc:
+            await u.message.reply_text(f"❌ {exc}")
+        except Exception as exc:  # noqa: BLE001
+            await u.message.reply_text(f"❌ {friendly_error(exc)}")
 
     async def cmd_health(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """/health — DB / FS / Network probe."""

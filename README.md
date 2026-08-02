@@ -108,6 +108,14 @@ python orca.py doctor    # engineering checks
     - `/pdf md <markdown>` — best-effort Markdown → PDF (headings, bullets, code blocks, inline bold/italic/code)
     - `/pdf ocr <path> [page]` — OCR a scanned PDF page; requires Tesseract + poppler on the system
   - Generation uses `reportlab` (no native deps). OCR uses `pdf2image` + `pytesseract` (already in `requirements.txt`).
+- **EFI-OS (added 2026-08-02)**: `/efi` is a thin Telegram wrapper around the bundled local evidence OS.
+    - `/efi capabilities` — show the 17-capability matrix
+    - `/efi self-test` — run the 19 bundled integrity tests
+    - `/efi research <query>` — local RAG research (no API keys)
+    - `/efi analyze <subject>` — engineering analysis (17 lenses)
+    - `/efi compare <sub1> <sub2> [...]` — rank shared/different principles
+    - `/efi ingest <subject> <local-path> [type]` — ingest a local file
+  - The wrapper at `skills/efi_os_skill.py` shells out to `tools/EFI_OS.py` and verifies its SHA-256 on import (refuses to run a tampered file). Uses NO external API keys; all data stays on the bot host. 19/19 bundled self-tests pass.
 
 ## Engineering Rules Applied
 - **Zero duplication**: each module has a single canonical implementation
