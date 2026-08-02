@@ -63,6 +63,8 @@ class OrcaBot:
         h(CommandHandler("transcribe", self.cmd_transcribe))
         h(CommandHandler("docx", self.cmd_docx))
         h(CommandHandler("xlsx", self.cmd_xlsx))
+        h(CommandHandler("search", self.cmd_search))
+        h(CommandHandler("web", self.cmd_search))  # alias
         h(CommandHandler("health", self.cmd_health))
         # Auto-transcribe incoming voice / audio messages (Apple-grade: voice is the
         # primary input on Telegram per MASTER_PROMPT).
@@ -121,6 +123,7 @@ class OrcaBot:
                 BotCommand("transcribe", "Voice/audio → text (Whisper API)"),
                 BotCommand("docx", "Read/create .docx (python-docx)"),
                 BotCommand("xlsx", "Read/create .xlsx (openpyxl)"),
+                BotCommand("search", "Web search (Tavily/Serper/DDG)"),
                 BotCommand("health", "DB / FS / Network probe"),
                 # 2026-07-29 ADD: diag + setup wizard + cancel FSM
                 BotCommand("diag", "Diagnostics (self-heal report)"),
@@ -1351,6 +1354,75 @@ class OrcaBot:
                 except OSError:
                     pass
             return ""
+
+    async def cmd_search(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/search <query>  — multi-provider web search.
+
+        Optional flags (after the query):
+          -n <N>     → limit results (default 5, max 20)
+          -p <name>  → force provider: tavily | serper | duckduckgo
+          -t <sec>   → timeout in seconds (default 15)
+        """
+        from core.middleware import friendly_error
+        from skills import web_search_skill
+
+        args = c.args or []
+        if not args:
+            await u.message.reply_text(
+                "Usage:\n"
+                "  /search <query>\n"
+                "  /search <query> -n 10 -p tavily\n"
+                "_Auto-picks: Tavily → Serper → DuckDuckGo (no key)._"
+            )
+            return
+
+        # Naive flag parser (the query comes first; flags at the tail).
+        limit = 5
+        provider = "auto"
+        timeout = 15.0
+        flag_idx = len(args)
+        i = 0
+        while i < len(args):
+            a = args[i]
+            if a == "-n" and i + 1 < len(args):
+                try:
+                    limit = int(args[i + 1])
+                except ValueError:
+                    await u.message.reply_text("⚠️ -n needs a number")
+                    return
+                i += 2
+            elif a == "-p" and i + 1 < len(args):
+                provider = args[i + 1]
+                i += 2
+            elif a == "-t" and i + 1 < len(args):
+                try:
+                    timeout = float(args[i + 1])
+                except ValueError:
+                    await u.message.reply_text("⚠️ -t needs a number")
+                    return
+                i += 2
+            else:
+                flag_idx = i
+                break
+
+        query = " ".join(args[:flag_idx]).strip()
+        if not query:
+            await u.message.reply_text("⚠️ Empty query")
+            return
+
+        try:
+            result = web_search_skill.search(
+                query, limit=limit, provider=provider, timeout=timeout,
+            )
+            await u.message.reply_text(
+                web_search_skill.format_results(result),
+                parse_mode="Markdown",
+                disable_web_page_preview=True,
+            )
+        except web_search_skill.WebSearchError as exc:
+            await u.message.reply_text(f"❌ {exc}")
+        except Exception as exc:  # noqa: BLE001
+            await u.message.reply_text(f"❌ {friendly_error(exc)}")
 
     async def cmd_xlsx(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """/xlsx — read or create .xlsx files.

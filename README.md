@@ -88,6 +88,12 @@ python orca.py doctor    # engineering checks
     - `/xlsx append <path> <sheet> <v1,v2,...>` — append a row
     - `/xlsx set <path> <sheet> <ref> <value>` — write a single cell (int / float / bool auto-detected)
   - Incoming `.xlsx`/`.xlsm` files are auto-read and replied with a Markdown table of the first sheet. Requires `openpyxl` (already in `requirements.txt`).
+  - `/search` — multi-provider web search (Tavily → Serper → DuckDuckGo fallback). Foundation skill for research, fact-check, summarization.
+    - `/search <query>` — top 5 results
+    - `/search <query> -n 10` — top 10 results
+    - `/search <query> -p tavily` — force a specific provider
+    - `/search <query> -t 30` — custom timeout
+  - `TAVILY_API_KEY` is recommended (best results). `SERPER_API_KEY` is a backup. Falls back to DuckDuckGo (no key, limited). Requires `tavily-python` (already in `requirements.txt`).
 
 ## Engineering Rules Applied
 - **Zero duplication**: each module has a single canonical implementation
