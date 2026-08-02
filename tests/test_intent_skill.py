@@ -127,6 +127,12 @@ class TestPattern:
     def test_arabic_status(self):
         out = classify("ايه حالة السيرفر؟", use_llm=False)
         assert out.command == "/status"
+        # "ايه" is an Egyptian marker, so the dialect tag is "ar-eg".
+        assert out.language == "ar-eg"
+
+    def test_msa_arabic_keeps_ar_tag(self):
+        # Pure MSA without colloquial markers stays "ar" (not "ar-eg").
+        out = classify("الطقس في القاهرة", use_llm=False)
         assert out.language == "ar"
 
     def test_arabic_image(self):

@@ -188,97 +188,202 @@ def _args_first_noun_phrase(text: str, match: re.Match) -> List[str]:
 
 
 # (command, base_confidence, patterns, arg_extractor)
+# NOTE: Patterns are ADDITIVE. New Egyptian-dialect patterns are appended
+# to each rule's pattern list. Order within a list does not matter
+# (re.search is used). All Arabic patterns work in their canonical
+# shape; Egyptian variants (ايه/ازيك/بتعمل/عايز/ممكن/النهارده) are
+# explicit to avoid relying on MSA morphology.
 _RULES: List[Tuple[str, float, List[str], Any]] = [
     # Weather
     ("weather", 0.85, [
         r"\b(weather|forecast|temperature|طقس|الجو|درجة\s*الحرارة|امتى\s*هتمطر)\b",
         r"(?:how'?s|how\s+is)\s+(?:the\s+)?weather",
         r"\b(ممطر|شمسي|غائم|ممطر|حار|بارد)\b",
+        # Egyptian dialect
+        r"(?:الجو|الطقس|الحرارة)\s*(?:عامل|عاملة|هيكون|هيبقى|بيكون)\s*(?:ايه|إيه|اية|ازاي)",
+        r"ايه\s*(?:الجو|الطقس|الحرارة|درجة\s*الحرارة)(?:\s*(?:النهارده|بكرة|في|فى))?",
+        r"الجو\s*(?:النهارده|بكرة|فى|في)\s*",
+        r"هيطر|هيبرد|هيسخن|هجمد|هنمطر",
+        r"ممكن\s*(?:تطلّع[لي]*|تقول[لي]*|تجيب[لي]*|تطلع[لي]*)\s*(?:الطقس|الجو|درجة\s*الحرارة)",
+        r"عايز\s*(?:اعرف|أعرف)\s*(?:الطقس|الجو)",
     ], _args_first_noun_phrase),
     # Web search
     ("search", 0.85, [
         r"\b(search|google|find|look\s*up|ابحث|دور|فتش|لقى)\b",
         r"\bwhat\s+is\b", r"\bwho\s+is\b", r"\bwhere\s+is\b", r"\bwhen\s+did\b",
+        # Egyptian dialect
+        r"ممكن\s*(?:تدور[لي]*|تبحث[لي]*|تجيب[لي]*|تلاق[لي]*|تفتش[لي]*)\s*",
+        r"عايز\s*(?:اعرف|أعرف|دور|أدور|فتش|أفتش)\s*",
+        r"\bدور[لي]*\b|\bابحث[لي]*\b|\bفتش[لي]*\b|\bلقى[لي]*\b",
+        r"(?:ممكن|هل|تقدر)\s*(?:تقول[لي]*|تعرف[ني]*|تقولي|تعرفني)\s*",
+        r"\bعايز\s*(?:حاجة|معلومة|اى|اي)\b",
     ], _args_after_verb),
     # News
     ("news", 0.80, [
         r"\b(news|headlines|أخبار|خبر|عناوين)\b",
+        # Egyptian dialect
+        r"ايه\s*(?:الاخبار|الأخبار|الجديد|العناوين|الأخبار)\b",
+        r"الاخبار\s*(?:ايه|إيه|اية|اي)\b",
+        r"فيه\s*(?:ايه|إيه|اية|شئ|حاجة)\s*(?:النهارده|بكرة|اليوم)?",
+        r"ايه\s*(?:اللي\s*)?(?:صار|حصل|جرى|نزل)\s*(?:النهارده|اليوم)?",
     ], _args_after_verb),
     # Wikipedia
     ("wiki", 0.80, [
         r"\b(wikipedia|wiki|ويكيبيديا)\b",
+        # Egyptian dialect
+        r"(?:ممكن|عايز|محتاج)\s*(?:معلومة|تعريف|نبذة|ملخص)\s*(?:عن|على)\s*",
+        r"قول[لي]*\s*(?:عن|على)\s*",
     ], _args_after_verb),
     # arXiv
     ("arxiv", 0.80, [
         r"\b(arxiv|أركايف|بحث\s*علمي|paper|papers)\b",
+        # Egyptian dialect
+        r"ممكن\s*(?:تلاق[لي]*|تدور[لي]*)\s*(?:بحث|أبحاث|ورقة|ورقات|أوراق|دراسة|دراسات)\s*(?:علمية|أكاديمية)?",
     ], _args_after_verb),
     # Image generation
     ("image", 0.85, [
-        r"\b(image|generate\s+image|draw|picture|painting|صورة|ارسم|ولّد\s*صورة|اعمل\s*صورة)\b",
+        r"\b(image|generate\s+image|draw|picture|painting|صورة|ارسم|ولدّ?\s*صورة|اعمل\s*صورة)\b",
         r"\bDALL-?E\b",
+        # Egyptian dialect
+        r"ممكن\s*(?:تعمل|تولدّ?|تنشئ|تخرج|تسوي)\s*(?:لي)?\s*صورة",
+        r"(?:ارسم[لي]*|رسمّ?[لي]*|صمم[لي]*|ولدّ?[لي]*)\s*",
+        r"عايز\s*صورة|عايز\s*(?:ارسم|أرسم)",
+        r"ممكن\s*(?:تطلع[لي]*|تجيب[لي]*)\s*صورة",
     ], _args_after_verb),
     # Voice / transcription
     ("transcribe", 0.85, [
         r"\b(transcribe|transcript|تفريغ|فرّغ|اكتب\s*(?:الكلام|المقطع))\b",
         r"\bwhat\s+(?:did|does)\s+(?:he|she|they)\s+say",
+        # Egyptian dialect
+        r"ممكن\s*(?:تفرّ?غ[لي]*|تكتب[لي]*)\s*(?:الكلام|المقطع|المقابلة|الفيديو|الصوت)",
+        r"اكتب\s*(?:لي)*\s*(?:اللي|الكلام|الحروف|النص)\s*(?:اللي|في)",
+        r"عايز\s*(?:النص|تفريغ|تفريغ\s*المقطع)\s*(?:بتاع|اللي\s*في|من)",
     ], _args_after_verb),
     # Translation (combined v2e + translate)
     ("translate", 0.80, [
         r"\b(translate|translation|ترجم|ترجمة)\b",
+        # Egyptian dialect
+        r"ممكن\s*(?:تترجم[لي]*|ترجم[لي]*|تترجم)\s*",
+        r"ترجم[لي]*\s*(?:الكلام|الجملة|النص|ده|دي|هذا|هذه)?",
+        r"ايه\s*معنى|ايه\s*معناها|ايه\s*معناه|ايه\s*ترجمة",
+        r"عايز\s*(?:ترجمة|أترجم|اترجم)\s*",
     ], _args_after_verb),
     # Voice-out (TTS)
     ("say", 0.75, [
         r"\b(say\s+it|read\s+aloud|tts|اقرا|انطق|قول)\b",
+        # Egyptian dialect
+        r"ممكن\s*(?:تقول[ها]*|تقول[لي]*|تنطق[ها]*|تقرا[ها]*)\s*",
+        r"(?:اقرا[ها]*|انطق[ها]*|قول[ها]*)\s*",
+        r"عايز\s*(?:اسمع|أسمع)\s*(?:النص|الكلام|ده|دي|هذا|هذه|الجملة)?",
     ], _args_quoted_or_tail),
     # URL shortener
     ("short", 0.80, [
-        r"\b(shorten|url\s*shorter|اختصر|قصّر\s*الرابط)\b",
+        r"\b(shorten|url\s*shorter|اختصر|قصرّ?\s*الرابط)\b",
+        # Egyptian dialect
+        r"ممكن\s*(?:تختصر[لي]*|تقصرّ?[لي]*|تصغرّ?[لي]*)\s*(?:ال)?(?:لينك|رابط|link|url)",
+        r"(?:اخصر[لي]*|قصرّ?[لي]*|صغرّ?[لي]*)\s*(?:ال)?(?:لينك|رابط|link|url)",
+        r"الرابط\s*(?:طويل|كبير|طويييل)",
     ], _args_url),
     # QR
     ("qr", 0.80, [
         r"\b(qr|qrcode|qr\s*code|رمز\s*qr)\b",
+        # Egyptian dialect
+        r"ممكن\s*(?:تعملّ?[لي]*|تسوي[لي]*|تجيب[لي]*)\s*(?:لي)*\s*qr",
+        r"اعملّ?[لي]*\s*(?:رمز\s*)?qr|عملّ?[لي]*\s*qr",
     ], _args_quoted_or_tail),
     # PDF
     ("pdf", 0.80, [
         r"\b(pdf|بي\s*دي\s*اف)\b",
+        # Egyptian dialect
+        r"ممكن\s*(?:تعملّ?[لي]*|تسوي[لي]*|تحولّ?[لي]*)\s*(?:ملف)?\s*pdf",
+        r"اعملّ?[لي]*\s*pdf|عملّ?[لي]*\s*pdf|حولّ?[لي]*\s*pdf",
+        r"عايز\s*(?:ملف\s*)?pdf|عايز\s*(?:ات)?(?:اعمل|أعمل)\s*pdf",
     ], _args_after_verb),
     # Word
     ("docx", 0.80, [
         r"\b(docx|word|ورد|مايكروسوفت\s*وورد)\b",
+        # Egyptian dialect
+        r"ممكن\s*(?:تعملّ?[لي]*|تسوي[لي]*)\s*(?:ملف)?\s*(?:وورد|ورد|word|docx)",
+        r"اعملّ?[لي]*\s*(?:وورد|ورد|word|docx)|عملّ?[لي]*\s*(?:وورد|ورد|word|docx)",
+        r"عايز\s*(?:ملف\s*)?(?:وورد|ورد|word|docx)",
     ], _args_after_verb),
     # Excel
     ("xlsx", 0.80, [
         r"\b(xlsx|excel|اكسل|إكسل)\b",
+        # Egyptian dialect
+        r"ممكن\s*(?:تعملّ?[لي]*|تسوي[لي]*)\s*(?:ملف)?\s*(?:اكسل|إكسل|excel|xlsx)",
+        r"اعملّ?[لي]*\s*(?:اكسل|إكسل|excel|xlsx)|عملّ?[لي]*\s*(?:اكسل|إكسل|excel|xlsx)",
+        r"عايز\s*(?:ملف\s*)?(?:اكسل|إكسل|excel|xlsx)",
     ], _args_after_verb),
     # Crypto
     ("crypto", 0.85, [
         r"\b(btc|eth|bitcoin|ethereum|crypto|بيتكوين|ايثيريوم|كريبتو|عملات\s*رقمية)\b",
+        # Egyptian dialect
+        r"بيتكوين\s*(?:بكام|كام|كام\s*دولار|طالع|نازل|بيزيد|بيقل|نازل|طالع)",
+        r"(?:ايثيريوم|إيثيريوم|ايثريوم|إيثريوم)\s*(?:بكام|كام|طالع|نازل)?",
+        r"ممكن\s*(?:تدور[لي]*|تشوف[لي]*|تعرفني)\s*(?:سعر)?\s*(?:بت|بيتكوين|btc|eth|ايثيريوم)",
+        r"سعر\s*(?:ال)?(?:بيتكوين|بت|btc|ايثيريوم|eth|كريبتو)",
     ], _args_after_verb),
     # Stocks
     ("stock", 0.85, [
         r"\b(stock|stocks|ticker|AAPL|TSLA|NVDA|سهم|اسهم|تداول)\b",
+        # Egyptian dialect
+        r"سهم\s*(?:تسلا|ابل|أبل|مايكروسوفت|جوجل|امازون|انتل|نيفيديا|nvidia|tsla|aapl|msft|goog|amzn)\s*(?:بكام|كام|طالع|نازل|بيزيد|بيقل)?",
+        r"ممكن\s*(?:تدور[لي]*|تشوف[لي]*|تعرفني)\s*(?:سعر\s*)?(?:سهم|سهم\s*تسلا|سهم\s*ابل)",
+        r"سعر\s*(?:سهم\s*)?(?:تسلا|ابل|أبل|مايكروسوفت|جوجل|امازون)",
     ], _args_after_verb),
     # FX
     ("fx", 0.80, [
         r"\b(fx|exchange\s*rate|currency|صرف|عملة|دولار|يورو|جنيه)\b",
+        # Egyptian dialect
+        r"(?:سعر|كام)\s*(?:الدولار|اليورو|الجنيه|الريال|الدرهم|الجنيه\s*المصري)?",
+        r"(?:الدولار|اليورو|الجنيه|الجنيه\s*المصري)\s*(?:بكام|كام|كام\s*جنيه|كام\s*دولار)?",
+        r"ممكن\s*(?:تحولّ?[لي]*|تعرفني|تدور[لي]*)\s*(?:سعر\s*)?(?:الدولار|اليورو|الجنيه)",
     ], _args_after_verb),
     # GitHub
     ("gh", 0.80, [
         r"\b(github|repo|repository|commit|pr\s*#?\d+|issue\s*#?\d+|جيت\s*هب)\b",
+        # Egyptian dialect
+        r"ممكن\s*(?:تشوف[لي]*|تعرفني|تدور[لي]*)\s*(?:ال)?(?:repo|repository|repos|repositories|pr|issue|commit|commits)",
+        r"ايه\s*(?:جديد\s*)?(?:في)?\s*ال[ـ]?\s*(?:pr|issue|repo|repository)\s*#?\d*",
     ], _args_after_verb),
     # EFI-OS
     ("efi", 0.75, [
         r"\b(efi[\s-]?os|efios|founder\s*intelligence|إف\s*آي\s*آي|ادلة|ادلة\s*ادلة)\b",
+        # Egyptian dialect
+        r"\b(?:ممكن\s*)?(?:حلل|حللّ?|شخصّ?|شخصّ?)\b",
+        r"ممكن\s*(?:تحلل[لي]*|تعمل\s*تحليل|تطلع[لي]*\s*تحليل)",
+        r"ايه\s*(?:رايك|رأيك|تحليلك|تقييمك)\s*(?:في)?",
+        r"\b(?:شغلّ?[لي]*|شغلّ?)\b",
+        r"محرك\s*(?:الذكاء|ذكاء\s*اصطناعي)?",
     ], _args_after_verb),
     # System
     ("status", 0.85, [
         r"\b(status|حالة|حاله|اخبارك|اخبار\s*النظام|ازيك|صحة|صحي)\b",
+        # Egyptian dialect
+        r"\b(?:عامل|عاملة)\s*(?:ايه|إيه|اية|ازاي)\b",
+        r"\b(?:اخبارك|أخبارك|خبارك)\s*(?:ايه|إيه|اية|اي)\b",
+        r"\b(?:بتعمل|بتقول|بتعرف|بتقدر)\s*(?:ايه|إيه|اية)\b",
+        r"\b(?:ازيك|ازايك|إزيك|إزيك|عامل\s*ايه|اخبارك\s*ايه)\b",
+        r"صباح\s*(?:الخير|النور|الورد)",
+        r"مساء\s*(?:الخير|النور|الورد)",
+        r"\b(?:تمام|ماشي|كويس|بخير)\b\s*?$",
     ], _args_after_verb),
     ("skills", 0.85, [
         r"\b(what\s*can\s*you\s*do|skills|ايه\s*اللي\s*تعمله|ايه\s*مهاراتك)\b",
+        # Egyptian dialect
+        r"ايه\s*(?:اللي\s*)?(?:بتعمله|بتقدري|بتعرف\s*تعمله|تقدر\s*تعمله|بتعمل)",
+        r"ايه\s*(?:اوامرك|أوامرك|الاوامر|الأوامر|commands)",
+        r"ايه\s*(?:الحاجات|الأشياء|الأمور)\s*(?:اللي\s*)?(?:بتعملها|بتعرفها|تقدر\s*تعملها)",
+        r"ممكن\s*(?:تعمل|تعرف)\s*(?:ايه|إيه|اية)",
     ], _args_after_verb),
-    ("health", 0.80, [
+    ("health", 0.85, [
         r"\b(health\s*check|probe|db\s*check|فحص\s*صحة|تشخيص)\b",
+        # Egyptian dialect — require the full phrase, not just "في"
+        r"في\s*(?:مشكلة|مشاكل|خلل|عطل|حاجة\s*غلط)\b",
+        r"ممكن\s*(?:تعمل|تسوي)\s*(?:فحص|تشخيص|check|probe)",
+        # "كل حاجة تمام" must end the sentence
+        r"كل\s*(?:حاجة|الأشياء|الأمور)\s*(?:تمام|كويس|بخير|شغ[اا]ل|شغال)\s*?$",
     ], _args_after_verb),
 ]
 
@@ -291,24 +396,60 @@ for _cmd, _conf, _pats, _extractor in _RULES:
 # Language detection heuristic: Arabic unicode range vs Latin.
 _ARABIC_RE = re.compile(r"[\u0600-\u06FF]")
 _LATIN_RE = re.compile(r"[A-Za-z]")
+# Egyptian dialect markers (العامية المصرية). These are character
+# combinations that almost never appear in MSA: "ايه" used as a
+# question word, "بتعمل" present-tense colloquial, "عايز" want,
+# "ممكن" can/could, "النهارده" today, "ازيك" how-are-you, "ده/دي"
+# this-m/this-f, "بتاع" of/belonging-to, "كويس" good, "بكام" how-much.
+_EGYPTIAN_MARKERS = (
+    r"ايه|ازيك|ازايك|بتعمل|عايز|ممكن|النهارده|بكرة|امبارح|"
+    r"كده|كدا|دلوقتي|علطول|كويس|بكام|ازاي|ليه|فين|امتى|"
+    r"\bده\b|\bدي\b|\bدول\b|\bبتاع\b|بقى|قوي|جدع|يا\s*عم|يا\s*باشا|"
+    r"صباح\s*الخير|مساء\s*الخير|عامل\s*ايه|اخبارك\s*ايه|"
+    r"يا\s*أخويا|يا\s*اخويا|حبيبي|يا\s*ريمي"
+)
+_EGYPTIAN_RE = re.compile(_EGYPTIAN_MARKERS, re.UNICODE)
 
 
 def _detect_language(text: str) -> str:
-    """Return 'ar', 'en', 'mixed', or 'unknown'."""
+    """Return language code.
+
+    Primary tags:
+      - 'ar'    Modern Standard Arabic
+      - 'ar-eg' Egyptian Arabic (colloquial)
+      - 'en'    English
+      - 'mixed' Arabic + English in the same sentence
+      - 'unknown' no alphabetic chars
+    """
     ar = len(_ARABIC_RE.findall(text))
     en = len(_LATIN_RE.findall(text))
     if ar == 0 and en == 0:
         return "unknown"
+    base = "en"
     if ar == 0:
-        return "en"
-    if en == 0:
-        return "ar"
-    ratio = ar / (ar + en)
-    if ratio > 0.8:
-        return "ar"
-    if ratio < 0.2:
-        return "en"
-    return "mixed"
+        base = "en"
+    elif en == 0:
+        base = "ar"
+    else:
+        ratio = ar / (ar + en)
+        if ratio > 0.8:
+            base = "ar"
+        elif ratio < 0.2:
+            base = "en"
+        else:
+            base = "mixed"
+    # Egyptian-dialect refinement: applies when the text has Arabic
+    # content. We only tag 'ar-eg' for Arabic-dominant text to keep
+    # the 'mixed' bucket honest (a sentence like "weather النهارده"
+    # is still "mixed").
+    if ar > 0 and _EGYPTIAN_RE.search(text):
+        if base == "ar":
+            return "ar-eg"
+        # If the user wrote 70%+ Arabic, we still tag Egyptian even
+        # if a few Latin words slipped in.
+        if ar / (ar + en) >= 0.7:
+            return "ar-eg"
+    return base
 
 
 _URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
