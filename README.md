@@ -116,6 +116,13 @@ python orca.py doctor    # engineering checks
     - `/efi compare <sub1> <sub2> [...]` — rank shared/different principles
     - `/efi ingest <subject> <local-path> [type]` — ingest a local file
   - The wrapper at `skills/efi_os_skill.py` shells out to `tools/EFI_OS.py` and verifies its SHA-256 on import (refuses to run a tampered file). Uses NO external API keys; all data stays on the bot host. 19/19 bundled self-tests pass.
+- **Intent (added 2026-08-02)**: `/intent` understands free-form Arabic / English / mixed messages and maps them to the closest Orca command.
+    - `/intent ابحث عن weather in Tokyo` → suggests `/search weather in Tokyo`
+    - `/intent اعمل صورة قطة في الفضاء` → suggests `/image قطة في الفضاء`
+    - `/intent translate this to Arabic` → suggests `/translate this to Arabic`
+  - Hybrid 2026 stack: deterministic pre-compiled patterns (always works, no API key) + optional LLM refinement for low-confidence matches (uses the existing LLM bridge with the user's command history as in-context examples). 23 commands covered. Arabic + English + mixed-language detection. Per-user history (rolling 10 commands) used as few-shot examples.
+  - The `on_text` fallback also runs intent classification when the LLM brain is offline, so the user still gets "Did you mean /weather Cairo?" instead of a generic "I don't understand".
+  - 43 unit tests cover pattern matching, language detection, entity extraction, user profile, LLM refinement paths, error handling.
 
 ## Engineering Rules Applied
 - **Zero duplication**: each module has a single canonical implementation

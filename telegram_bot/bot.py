@@ -68,6 +68,8 @@ class OrcaBot:
         h(CommandHandler("web", self.cmd_search))  # alias
         h(CommandHandler("image", self.cmd_image))
         h(CommandHandler("img", self.cmd_image))  # alias
+        # --- Adaptive natural-language intent (additive) ---
+        h(CommandHandler("intent", self.cmd_intent))
         # --- EFI-OS external tool wrapper (additive) ---
         h(CommandHandler("efi", self.cmd_efi))
         # --- Smart integration: cross-skill pipelines (additive) ---
@@ -133,6 +135,7 @@ class OrcaBot:
                 BotCommand("xlsx", "Read/create .xlsx (openpyxl)"),
                 BotCommand("search", "Web search (Tavily/Serper/DDG)"),
                 BotCommand("image", "Generate image from prompt (DALL-E)"),
+                BotCommand("intent", "Classify a free-form message into a command"),
                 BotCommand("efi", "EFI-OS: local evidence + RAG + analysis (no API keys)"),
                 BotCommand("v2e", "Voice → English (transcribe + translate pipeline)"),
                 BotCommand("research", "Multi-source research card (web+wiki+news)"),
@@ -232,6 +235,7 @@ class OrcaBot:
         "weather_skill":      "weather forecast (Open-Meteo, no key)",
         "translation_skill":  "text translation (Google web, 100+ langs)",
         "efi_os_skill":       "EFI-OS wrapper — local evidence + RAG + analysis (no API keys)",
+        "intent_skill":       "Adaptive natural-language intent classifier (Arabic+English)",
     }
 
     async def cmd_skills(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -854,7 +858,28 @@ class OrcaBot:
                 logger.debug(f"memory save (assistant) skipped: {me}")
             await u.message.reply_text(response)
             return
-        # Fallback: echo + command hint (full menu, including the 6 new skills)
+        # Fallback: rule-based intent classification + command hint.
+        # Try the intent_skill first (deterministic, no API key).
+        try:
+            from skills import intent_skill
+            intent = intent_skill.classify(
+                text, user_id=str(user_id), use_llm=False,
+            )
+            suggestion = ""
+            if intent.is_actionable and intent.command:
+                suggestion = (
+                    f"\n🎯 _Did you mean:_ `{intent.command} "
+                    f"{' '.join(intent.args[:3])}`"
+                    f" _(confidence {intent.confidence:.2f})_"
+                )
+            elif intent.is_suggestion and intent.command:
+                suggestion = (
+                    f"\n💡 _Close match:_ `{intent.command}` "
+                    f"_(confidence {intent.confidence:.2f})_"
+                )
+        except Exception:  # noqa: BLE001
+            suggestion = ""
+
         fallback = (
             f"Received: {text[:200]}\n\n"
             f"🧠 Brain offline — rule-based mode.\n"
@@ -865,9 +890,12 @@ class OrcaBot:
             f"Media: /transcribe /say /image\n"
             f"Docs: /docx /xlsx /pdf (info/text/tables/make/md/ocr)\n"
             f"Web: /search /news /wiki /arxiv\n"
-            f"Pipelines: /v2e (voice→EN) /research (web+wiki+news)\n"
+            f"Pipelines: /v2e (voice→EN) /research (web+wiki+news) "
+            f"/intent\n"
             f"Finance: /crypto /stock /fx\n"
-            f"Utils: /gh /qr /short /weather /translate\n\n"
+            f"Utils: /gh /qr /short /weather /translate /efi\n\n"
+            f"Tip: /intent <your text>  — get a smart suggestion."
+            f"{suggestion}\n\n"
             f"Set LLM_API_KEY or OPENAI_API_KEY in .env to unlock the full brain."
         )
         try:
@@ -2149,6 +2177,46 @@ class OrcaBot:
                 pass
         await u.message.reply_text(out, parse_mode="Markdown",
                                    disable_web_page_preview=True)
+
+    async def cmd_intent(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/intent <text> — classify a free-form message into a command.
+
+        Uses the intent_skill (hybrid: deterministic patterns + optional
+        LLM refinement). Surfaces a confidence score so the user can
+        decide whether to act on the suggestion.
+        """
+        from skills import intent_skill
+        from core.middleware import friendly_error
+
+        text = (u.message.text or "").split(maxsplit=1)
+        if len(text) < 2:
+            await u.message.reply_text(
+                "Usage: /intent <free-form text>\n"
+                "Example: /intent ابحث عن weather in Tokyo\n"
+                "_Returns: matched command + confidence + entities._"
+            )
+            return
+        body = text[1].strip()
+        user_id = str(u.effective_user.id) if u.effective_user else ""
+        try:
+            intent = intent_skill.classify(body, user_id=user_id, use_llm=True)
+            card = intent_skill.format_intent_card(intent)
+            # If actionable, offer a one-tap-style "do it" hint.
+            hint = ""
+            if intent.is_actionable:
+                hint = (
+                    f"\n\n👉 Send `{intent.command} {' '.join(intent.args[:3])}` "
+                    f"to run it."
+                )
+            elif intent.is_suggestion:
+                hint = (
+                    f"\n\n💡 Close match. The closest command is "
+                    f"`{intent.command}`. Try rephrasing or just send the "
+                    f"command directly."
+                )
+            await u.message.reply_text(card + hint, parse_mode="Markdown")
+        except Exception as exc:  # noqa: BLE001
+            await u.message.reply_text(f"❌ {friendly_error(exc)}")
 
     async def cmd_efi(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """/efi — wrapper around the bundled EFI-OS tool.
