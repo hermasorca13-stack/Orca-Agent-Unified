@@ -214,3 +214,45 @@ Pushed: commit `65082d1` (1f1a3c2..65082d1 master -> master).
 - [ ] Send `/update` to the live bot so it picks up `65082d1`
 - [ ] Run `/setup gemini <key>` to enable real LLM brain
 - [ ] Consider a CI workflow (`.github/workflows/test.yml`)
+
+## 2026-08-03 — Egyptian-Arabic dialect support for intent_skill
+
+The intent classifier is the bot's NL front door. The primary user
+(smoha8) communicates in Egyptian Arabic mixed with English, so we
+extended the rule set from 23 commands to cover 23 commands x ~5
+Egyptian variants each.
+
+### What changed
+
+- `skills/intent_skill.py`: 80+ new Egyptian dialect patterns added
+  to every rule, plus an `ar-eg` language tag for the dialect detector.
+  Fix: use `ø?` (optional shadda) instead of character classes
+  `[Xø]` to avoid the regex engine consuming the shadda and
+  missing the next consonant.
+- `tests/test_intent_egyptian.py`: 84 scenarios for realistic
+  Egyptian phrases (greetings, weather, search, image, etc.)
+- `tests/test_intent_lab_integration.py`: 23 integration tests
+  (multi-turn, compound intents, spelling variants, adversarial
+  input, throughput, determinism, thread-safety)
+
+### Test counts
+
+- 310 passed, 3 skipped (up from 287 passed, 3 skipped)
+- Average per-call latency: <2ms (Arabic), <2ms (English), <5ms (mixed)
+- Pushed: commit `d1b7e2e` (65e5ee7..d1b7e2e master -> master)
+
+### Lessons learned
+
+1. **Char classes with shadda are footguns in Python regex.** A class
+   like `[Ûø]` matches either char, but the engine picks the
+   leftmost. For `ÊİÑøÛ`, it consumes the shÏÉ, leaving `Û`
+   unmatched. Use `Xø?` (consonant + optional shÏÉ) instead.
+2. **Arabic question mark `¿` is a literal, not a regex quantifier.**
+   Use `?` (ASCII) for optional, or escape `\u061f` for literal.
+3. **Test expectations should accept `OR` alternatives.** A phrase
+   like `ããßä ÊÈÍËáí Úä weather API` is genuinely ambiguous between
+   `/weather` and `/search`. The classifier's choice is defensible
+   either way. Pin only the cases where the answer is unambiguous.
+4. **A 30-skill agent bridge can fail at collection time even when
+   intent_skill itself is fine.** Always isolate new skill tests
+   so they don't pull in telegram_adapter / service code.
