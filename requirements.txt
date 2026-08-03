@@ -43,7 +43,7 @@ google-generativeai>=0.3.0  # Gemini (used by core/llm_providers.py)
 # youtube-transcript-api is the 2026 community standard: free, no API key,
 # no OAuth, 125+ language codes, supports both manual + auto-generated captions.
 # Used by skills/youtube_skill.py
-youtube-transcript-api>=0.6.2
+youtube-transcript-api>=1.2.4
 # yt-dlp is the universal video/audio downloader; we use it as a fallback
 # when captions are disabled (download audio -> transcribe via Whisper).
 # Lazy-imported; not pinned to keep base install lean.
