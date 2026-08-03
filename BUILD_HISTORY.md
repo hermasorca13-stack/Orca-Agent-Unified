@@ -468,3 +468,89 @@ remain *useful* in offline / demo / CI mode.
    No change needed.** The fallback was already there; today it
    became the documented contract.
 
+
+---
+
+## 2026-08-03 — Multi-provider search chain (DDG -> Wikipedia)
+
+After the offline fallback commit (\c46b92d\), the live DDG smoke
+test returned 0 results for every query. The 2026 DDG HTML endpoint
+serves an **anomaly modal** challenge for nearly every bot-like
+User-Agent (\"Unfortunately, bots use DuckDuckGo too\"). Our existing
+\_ddg_search\ would parse this page and return 0 real results
+silently.
+
+The user's standing rule is **0% loss of capability when no API key**.
+So we needed a second leg of the chain that works in 2026.
+
+### What we tried
+
+- **DDG HTML** (legacy \html.duckduckgo.com/html/\) — blocked by
+  anomaly detector (12 KB of \"verification required\" HTML)
+- **DDG lite** (\lite.duckduckgo.com/lite/\) — same block
+- **Brave** (\search.brave.com/search\) — HTTP 429 too many requests
+- **Qwant API** — HTTP 403 forbidden
+- **Mojeek** — captcha (ALTCHA challenge) on the HTML endpoint
+- **Startpage** — Anubis challenge (heavy anti-bot)
+- **SearXNG (searx.be)** — returns HTML, not the JSON we asked for
+- **Bing** — not probed (would need user-agent work)
+- **Wikipedia REST** (\/w/api.php?action=query&list=search\) — **works**
+  Real results, no captcha, no key, JSON response, multilingual
+  via \{lang}.wikipedia.org\
+
+### What changed
+
+- \skills/offline_fallbacks.py\: \local_search\ is now a chain
+  - \_ddg_search()\ — first attempt, detects the anomaly page
+    (\nomaly-modal\ in body) and returns \[]\ cleanly
+  - \_wikipedia_search()\ — second attempt via MediaWiki
+    \ction=query&list=search\. Strips the
+    \<span class=\"searchmatch\">\ HTML, builds a stable
+    \wikipedia.org/wiki/Title\ URL
+  - \local_search()\ — tries each provider, returns the first
+    non-empty list, never raises
+- Each provider is a separate function so callers can pick a
+  specific backend (e.g. web_search_skill can call
+  \_wikipedia_search\ directly for known entities).
+- \	ests/test_offline_fallbacks.py\: new TestWikipediaSearch
+  and TestDDGSearch classes (4 new tests, total 32).
+
+### Live verification
+
+3 real queries, all returned 5 results from Wikipedia in ~750ms
+per query:
+
+| Query                   | Source     | Hits | Sample result                                |
+| ----------------------- | ---------- | ---- | -------------------------------------------- |
+| python tutorial 2026    | wikipedia  | 5    | Python (programming language)                 |
+| egyptian arabic NLP     | wikipedia  | 5    | Egyptian Arabic, Varieties of Arabic          |
+| orca agent unified      | wikipedia  | 5    | (best-effort hits in FOSS / Consciousness)   |
+
+Total: 409 passed, 5 skipped.
+Pushed: commit \7e97aaa\ (\ed31385..7e97aaa master -> master\).
+Verified: \git rev-parse HEAD\ = \7e97aaa34ee5be7c8296a72353793c40ff3dc490\.
+
+### Lessons learned
+
+1. **The 2026 search landscape is hostile to bots.** DDG, Mojeek,
+   Startpage, Brave, Qwant all have anti-bot protection that
+   blocks simple \urllib\ clients. Wikipedia is the last
+   major open search backend that doesn't.
+2. **Multi-provider chains are the only sustainable answer.**
+   When one provider is down or blocking, fall through to the
+   next. The user should never see an empty result list when
+   *any* provider is reachable.
+3. **Anomaly detection is detectable in the body.** DDG's
+   challenge page is identifiable by \nomaly-modal\ class or
+   the literal \"Unfortunately, bots use DuckDuckGo too\". Detecting
+   this and returning \[]\ is better than trying to parse
+   captcha HTML as search results.
+4. **Wikipedia is narrow but reliable.** It works for entities
+   (people, places, languages, software, scientific concepts)
+   and fails silently for ephemeral queries (weather, news,
+   \"what is the best X in 2026\"). That's the right tradeoff
+   for an offline fallback — better to have 5 good results for
+   the things it knows than 0 spam results.
+5. **Don't remove the dead provider.** DDG might still work
+   from whitelisted IPs or after cookies. The chain costs
+   nothing extra; we keep it as the first attempt.
