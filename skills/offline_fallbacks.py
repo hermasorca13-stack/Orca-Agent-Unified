@@ -23,10 +23,11 @@ in requirements.txt):
       duration, channels, bitrate, format. Useful when the user sends
       a voice note and we have no Whisper key.
 
-  - local_search(query, limit, ...)        — direct DuckDuckGo HTML scrape
+  - local_search(query, limit, ...)        — multi-provider web search
+      chain (DuckDuckGo HTML -> Wikipedia REST). Pure stdlib. Used
       as a robust fallback for the Tavily/Serper providers. Already
-      used in web_search_skill but exposed here so other skills can
-      call it directly.
+      integrated in web_search_skill but exposed here so other skills
+      can call it directly.
 
   - local_text_complete(prompt, max_tokens) — small rule-based text
       completion. NOT an LLM, but useful for quick structured answers
@@ -377,17 +378,23 @@ def local_audio_info(source) -> Dict[str, Any]:
 
 
 # =====================================================================
-# Local DuckDuckGo search (also used by web_search_skill)
+# Local multi-provider search (used by web_search_skill + ad-hoc callers)
 # =====================================================================
-def local_search(
-    query: str,
-    *,
-    limit: int = 5,
-    timeout: float = 15.0,
-) -> List[Dict[str, str]]:
+# Chain (2026 stack):
+#   1. DuckDuckGo HTML  — fast, no key, but anomaly-detector in 2026
+#   2. Wikipedia REST    — no key, no captcha, real results for entities
+#   3. Empty list        — never raises, never returns an error
+#
+# Each provider is a separate function so callers can also use them
+# directly (e.g. web_search_skill calls `_wikipedia_search` even when
+# the DDG path is also configured, as a safety net).
+# =====================================================================
+
+
+def _ddg_search(query: str, limit: int, timeout: float) -> List[Dict[str, str]]:
     """Scrape DuckDuckGo's HTML for a result list. Pure stdlib.
 
-    Returns a list of dicts: {title, url, snippet}. Never raises.
+    Returns [] on any failure (anomaly detector, network, parse).
     """
     try:
         url = "https://html.duckduckgo.com/html/?" + urllib.parse.urlencode(
@@ -401,14 +408,19 @@ def local_search(
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8", errors="ignore")
     except Exception as exc:
-        logger.debug("local_search failed: {}", exc)
+        logger.debug("ddg_search: network error: {}", exc)
+        return []
+
+    # 2026 reality: DDG HTML now serves an "anomaly modal" challenge
+    # for most bot-like User-Agents. Detect it and bail out cleanly.
+    if "anomaly-modal" in body or "Unfortunately, bots" in body:
+        logger.debug("ddg_search: anomaly detector hit, skipping")
         return []
 
     # DDG HTML uses CSS classes that change; a result block is
     # roughly: <a class="result__a" href="...">title</a> + a snippet
     # in a sibling div. We use a stable snippet-based pattern.
     results: List[Dict[str, str]] = []
-    # Extract anchors with class hint or fallback to title-h2
     pattern = re.compile(
         r'<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
         re.DOTALL,
@@ -421,7 +433,6 @@ def local_search(
             "&gt;", ">").replace("&quot;", "\"").replace("&#x27;", "'")
         if not title:
             continue
-        # Try to find the next snippet block.
         idx = m.end()
         snip_block = body[idx: idx + 2000]
         snip_m = re.search(
@@ -440,6 +451,110 @@ def local_search(
         if len(results) >= limit:
             break
     return results
+
+
+def _wikipedia_search(
+    query: str,
+    limit: int,
+    timeout: float,
+    lang: str = "en",
+) -> List[Dict[str, str]]:
+    """Search Wikipedia's REST API. No key, no captcha, real results.
+
+    Uses the MediaWiki `action=query&list=search` endpoint, which
+    returns full-text search across all Wikipedia articles. Results
+    include title, snippet (with HTML tags we strip), and a stable
+    Wikipedia URL.
+    """
+    try:
+        url = (
+            f"https://{lang}.wikipedia.org/w/api.php?"
+            + urllib.parse.urlencode({
+                "action": "query",
+                "list": "search",
+                "srsearch": query,
+                "srlimit": str(limit),
+                "format": "json",
+                "utf8": "1",
+            })
+        )
+        req = urllib.request.Request(url, headers={
+            "User-Agent": _UA,
+            "Accept": "application/json",
+        })
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read()
+        data = json.loads(raw.decode("utf-8", errors="ignore"))
+    except Exception as exc:
+        logger.debug("wikipedia_search: network error: {}", exc)
+        return []
+
+    results: List[Dict[str, str]] = []
+    for hit in (data.get("query") or {}).get("search") or []:
+        title = (hit.get("title") or "").strip()
+        if not title:
+            continue
+        # The snippet comes with <span class="searchmatch">...</span>
+        # around matched terms. Strip all HTML.
+        snippet = re.sub(r"<[^>]+>", "", hit.get("snippet", "")).strip()
+        snippet = snippet.replace("&amp;", "&").replace("&quot;", "\"")
+        # Build a stable Wikipedia URL
+        title_url = urllib.parse.quote(title.replace(" ", "_"))
+        results.append({
+            "title": title[:200],
+            "url": f"https://{lang}.wikipedia.org/wiki/{title_url}",
+            "snippet": snippet[:400],
+            "source": "wikipedia",
+        })
+        if len(results) >= limit:
+            break
+    return results
+
+
+def local_search(
+    query: str,
+    *,
+    limit: int = 5,
+    timeout: float = 10.0,
+    lang: str = "en",
+) -> List[Dict[str, str]]:
+    """Multi-provider web search. Pure stdlib. Never raises.
+
+    Tries each provider in order and returns the first non-empty
+    result set. This way the bot always returns *something* even
+    when one provider is rate-limited / captcha'd.
+
+    Order (2026):
+      1. DuckDuckGo HTML  — best general results when it works
+      2. Wikipedia REST   — reliable for entities, people, places,
+                            languages, technical concepts
+      3. Empty list       — never returns an error
+
+    Returns a list of {title, url, snippet, source} dicts.
+    """
+    if not query or not str(query).strip():
+        return []
+    q = str(query).strip()
+    for provider in (_ddg_search, _wikipedia_search):
+        try:
+            if provider is _wikipedia_search:
+                results = provider(q, limit, timeout, lang=lang)
+            else:
+                results = provider(q, limit, timeout)
+            if results:
+                # Tag results with their source if not already
+                for r in results:
+                    r.setdefault("source", provider.__name__.lstrip("_"))
+                logger.info(
+                    "local_search: provider={} q={!r} hits={}",
+                    provider.__name__, q[:40], len(results),
+                )
+                return results
+        except Exception as exc:
+            logger.debug("local_search: provider {} failed: {}",
+                         provider.__name__, exc)
+            continue
+    return []
 
 
 # =====================================================================

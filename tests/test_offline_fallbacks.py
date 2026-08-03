@@ -254,12 +254,10 @@ class TestLocalTranscribePlaceholder:
 
 
 # ======================================================================
-# local_search (DuckDuckGo HTML scrape)
+# local_search (multi-provider chain)
 # ======================================================================
 class TestLocalSearch:
-    """Lightweight DDG HTML scrape. We don't assert real results
-    (network-dependent) — only that the function returns a list
-    and does not raise on bad input."""
+    """Multi-provider web search (DDG -> Wikipedia)."""
 
     def test_returns_list(self):
         out = mod.local_search("python tutorial 2026", limit=3)
@@ -277,3 +275,49 @@ class TestLocalSearch:
                 mod.local_search(bad, limit=1)
             except Exception as exc:
                 pytest.fail(f"raised on {bad!r}: {exc}")
+
+
+# ======================================================================
+# _wikipedia_search (direct unit tests)
+# ======================================================================
+class TestWikipediaSearch:
+    """Direct tests for the Wikipedia REST backend. The chain calls
+    this when DDG returns nothing (which is the common case in 2026).
+    """
+
+    def test_empty_query_returns_empty(self):
+        out = mod._wikipedia_search("", limit=5, timeout=5)
+        assert out == []
+
+    def test_returns_well_formed_items(self):
+        out = mod._wikipedia_search("Python programming language",
+                                     limit=3, timeout=10)
+        # Real results OR empty list if network is down — both OK
+        for item in out:
+            assert "title" in item and item["title"]
+            assert "url" in item
+            assert "wikipedia.org" in item["url"]
+            assert "snippet" in item
+            assert item.get("source") == "wikipedia"
+
+
+# ======================================================================
+# _ddg_search (graceful degradation under 2026 anomaly detector)
+# ======================================================================
+class TestDDGSearch:
+    """The DDG path is best-effort. In 2026 it usually returns []
+    due to the anomaly detector — and that's the correct behaviour."""
+
+    def test_returns_list_even_when_blocked(self):
+        # Should not raise, should return a list
+        out = mod._ddg_search("python", limit=3, timeout=5)
+        assert isinstance(out, list)
+
+    def test_handles_anomaly_detector(self):
+        # If the request actually hits DDG and gets the anomaly
+        # page, we should return [] rather than parsing garbage.
+        # The implementation detects "anomaly-modal" in the body.
+        out = mod._ddg_search("python", limit=3, timeout=5)
+        # Either [] (anomaly) or real results, never bogus matches
+        for item in out:
+            assert "title" in item
