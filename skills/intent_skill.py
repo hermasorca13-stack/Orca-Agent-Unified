@@ -171,6 +171,34 @@ def _args_url(text: str, match: re.Match) -> List[str]:
     return [match.group(1)] if match.lastindex else [text]
 
 
+def _args_subcommand(text: str, match: re.Match) -> List[str]:
+    """Extract the /termux subcommand and any trailing text.
+
+    Pattern matches like "battery", "notify hi there", "run ls -la".
+    The trigger verb ("check", "show", "get", "عايز", "ممكن") is
+    stripped; whatever follows is returned as the args list.
+    """
+    s = text.strip()
+    # Strip common English trigger verbs at the start
+    for trig in (
+        r"^(?:check|get|show|read|send|display|tell\s+me|what(?:'s|\s+is))\s+",
+        r"^(?:my\s+)?(?:phone|termux|android)\s+",
+    ):
+        s = re.sub(trig, "", s, flags=re.IGNORECASE).strip()
+    # Strip Egyptian triggers
+    for trig in (
+        r"^(?:عايز|ممكن|ابي|أبي|بد[يى]|عاوز)\s+",
+        r"^(?:اعرف|أعرف|اشوف|أشوف|شي[كك]|تشي[كك])\s+",
+    ):
+        s = re.sub(trig, "", s, flags=re.UNICODE).strip()
+    # Tokenise on whitespace (preserve quoted strings for `run` etc)
+    try:
+        import shlex
+        return shlex.split(s) if s else []
+    except ValueError:
+        return s.split()
+
+
 def _args_path(text: str, match: re.Match) -> List[str]:
     """Return a Windows / Unix path captured by the regex."""
     return [match.group(1)] if match.lastindex else [text]
@@ -371,6 +399,26 @@ _RULES: List[Tuple[str, float, List[str], Any]] = [
         r"ايه\s*(?:اللي|الموضوع|الحكاية)\s*(?:في\s*)?(?:الفيديو|الفديو|اليوتيوب|youtube|yt)\s*(?:ده|دي|هذا)?",
         r"ممكن\s*(?:تعملي\s*)?(?:ترجمة|تفريغ)\s+(?:الفيديو|الفديو|اليوتيوب|youtube|yt)",
     ], _args_url),
+    # Orca <-> Termux bridge (phone control)
+    ("termux", 0.85, [
+        # English
+        r"\b(?:termux|phone)\s+(?:battery|wifi|location|notify|toast|vibrate|torch|share|speak|clipboard|status|setup|help|ping|run|uptime|storage|wake)\b",
+        r"\b(?:check|get|show|read)\s+(?:my\s+)?(?:phone|termux)\s+(?:battery|wifi|location|status)\b",
+        r"\b(?:send|show)\s+(?:me\s+)?(?:a\s+)?notification\s+(?:on|to|from)\s+(?:my\s+)?(?:phone|termux)\b",
+        r"\b(?:vibrate|torch|wake)\s+(?:my\s+)?(?:phone|termux)\b",
+        r"\brun\s+(?:on|at|via)\s+(?:my\s+)?(?:phone|termux)\b",
+        # Phone-specific verbs
+        r"\b(?:battery|wifi|location)\s+(?:of|on|for)\s+(?:my\s+)?(?:phone|android)\b",
+        r"\b(?:my\s+)?(?:phone|android)\s+(?:battery|wifi|location|status)\b",
+        # Egyptian dialect — common phrasings (no required word order)
+        r"(?:بطاري[ةه]|واي\s*فاي|مكان|موقع|حال[ةه])\s*(?:بتاع[ةه]?\s*)?(?:الموبايل|التليفون|الهاتف|الفون|تليفوني|موبايلي|تليفونك|موبيلك)\b",
+        r"(?:بطاري[ةه]|واي\s*فاي|مكان|موقع|حال[ةه])\s+(?:الموبايل|التليفون|الهاتف|الفون)\b",
+        r"(?:عايز|ممكن|ابي|أبي|عاوز|بد[يى])\s*(?:اعرف|أعرف|اشوف|أشوف|تشي[كك]|اشوفك|تبي[نن]ي)\s*(?:بطاري[ةه]|واي\s*فاي|مكان|موقع|حال[ةه]|حالة\s*الموبايل)\b",
+        # "ايه حالة الموبايل/التليفون" — require the phone suffix
+        r"(?:ايه|إيه|ايش|ا[يى])\s*(?:بطاري[ةه]|حال[ةه]|الواي\s*فاي|المكان|الموقع)\s*(?:بتاع[ةه]?\s*)?(?:الموبايل|التليفون|تليفوني|موبايلي|الفون|الهاتف)",
+        r"(?:ابع[ثت]|ابعت[لي]|ار[سل]|وري[ني])\s*(?:لي\s*)?(?:notification|اشعار|إشعار|تنبيه|نب[هةه])\b",
+        r"(?:ول[عع]|شغ[لل]|طفي[يى])\s*(?:الكشاف|الفلاش|torch|النور)\b",
+    ], _args_subcommand),
     # System
     ("status", 0.85, [
         r"\b(status|حالة|حاله|اخبارك|اخبار\s*النظام|ازيك|صحة|صحي)\b",

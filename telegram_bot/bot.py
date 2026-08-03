@@ -71,6 +71,9 @@ class OrcaBot:
         h(CommandHandler("youtube", self.cmd_youtube))
         h(CommandHandler("yt", self.cmd_youtube))  # alias
         h(CommandHandler("img", self.cmd_image))  # alias
+        # --- Orca <-> Termux bidirectional bridge (2026-08-03) ---
+        h(CommandHandler("termux", self.cmd_termux))
+        h(CommandHandler("phone", self.cmd_termux))  # alias
         # --- Adaptive natural-language intent (additive) ---
         h(CommandHandler("intent", self.cmd_intent))
         # --- EFI-OS external tool wrapper (additive) ---
@@ -145,6 +148,8 @@ class OrcaBot:
                 BotCommand("health", "DB / FS / Network probe"),
                 # 2026-08-03 ADD: YouTube video analysis (transcript + oEmbed + LLM)
                 BotCommand("youtube", "Analyze YouTube video (transcript + summary + quotes)"),
+                # 2026-08-03 ADD: Orca <-> Termux bridge (HTTP-polled, bidirectional)
+                BotCommand("termux", "Phone bridge (battery/wifi/location/notify/run/...)"),
                 # 2026-07-29 ADD: diag + setup wizard + cancel FSM
                 BotCommand("diag", "Diagnostics (self-heal report)"),
                 BotCommand("setup", "Set LLM API key (wizard)"),
@@ -190,6 +195,8 @@ class OrcaBot:
             f"Pipelines (smart combinations):\n"
             f"/v2e [reply] — voice → English (transcribe + translate)\n"
             f"/research <q> — web + wiki + news combined card\n\n"
+            f"Phone bridge (Termux):\n"
+            f"/termux battery|wifi|location|notify|run|... (HTTP-polled)\n\n"
             f"Finance:\n"
             f"/crypto, /stock, /fx\n\n"
             f"Utilities:\n"
@@ -242,6 +249,8 @@ class OrcaBot:
         "efi_os_skill":       "EFI-OS wrapper — local evidence + RAG + analysis (no API keys)",
         "intent_skill":       "Adaptive natural-language intent classifier (Arabic+English)",
         "youtube_skill":      "YouTube video analysis (transcript + oEmbed + LLM, 125+ langs)",
+        # 2026-08-03 ADD: Orca<->Termux bridge (HTTP-polled, bidirectional)
+        "termux_skill":       "Phone bridge via Termux (battery, wifi, location, run, ...)",
     }
 
     async def cmd_skills(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -1413,6 +1422,87 @@ class OrcaBot:
             await wait_msg.edit_text(card[:4000], parse_mode="Markdown")
             # Follow-up with the rest.
             rest = card[4000:]
+            while rest:
+                await u.message.reply_text(rest[:4000], parse_mode="Markdown")
+                rest = rest[4000:]
+
+    async def cmd_termux(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/termux <subcommand> [args] — bidirectional bridge to a phone
+        running Termux (via tools/termux_bridge.py).
+
+        Subcommands include: battery, wifi, location, notify, toast,
+        vibrate, speak, torch, share, clipboard, uptime, storage, wake,
+        ping, run, status, setup, help.
+
+        The phone must be running the daemon (see `/termux setup`).
+        The bridge is HTTP-polled every ~3s; typical round-trip is
+        under 1 second.
+        """
+        from core.middleware import friendly_error
+        if not u.message or not u.message.text:
+            await u.message.reply_text(
+                "📱 Usage: `/termux <subcommand> [args]`\n"
+                "Example: `/termux battery`\n"
+                "Try `/termux help` for the full list."
+            )
+            return
+
+        # Strip the command prefix.
+        text = u.message.text.strip()
+        for prefix in ("/termux",):
+            if text.startswith(prefix):
+                text = text[len(prefix):].strip()
+                break
+
+        # Tokenise (preserve quoted strings for `run` etc).
+        import shlex
+        try:
+            args = shlex.split(text) if text else []
+        except ValueError as exc:
+            await u.message.reply_text(
+                f"❌ Could not parse args: `{exc}`\n"
+                f"Tip: quote values with spaces, e.g. `/termux notify \"hi there\"`"
+            )
+            return
+
+        chat_id = u.effective_chat.id if u.effective_chat else 0
+
+        # Local-only subcommands get an instant reply; round-trip
+        # subcommands get a wait message (phone may take 1-15s).
+        from skills.termux_skill import SUBCOMMANDS
+        sub = args[0].lower() if args else ""
+        is_local = sub in ("help", "setup", "status", "")
+        if is_local:
+            try:
+                from skills.termux_skill import cmd_termux as termux_handler
+                reply = termux_handler(args, chat_id)
+                await u.message.reply_text(reply, parse_mode="Markdown")
+            except Exception as exc:  # noqa: BLE001
+                await u.message.reply_text(
+                    f"❌ termux error: {friendly_error(exc)}"
+                )
+            return
+
+        # Round-trip: send a "waiting" message, then dispatch.
+        wait_msg = await u.message.reply_text(
+            f"📱 sending `{sub}` to phone…\n"
+            f"   (typical 1-3s; max 30s for `run`)"
+        )
+        try:
+            from skills.termux_skill import cmd_termux as termux_handler
+            reply = termux_handler(args, chat_id)
+        except Exception as exc:  # noqa: BLE001
+            await wait_msg.edit_text(
+                f"❌ termux error: {friendly_error(exc)}"
+            )
+            return
+
+        # Telegram message length cap is 4096 chars.
+        if len(reply) <= 4000:
+            await wait_msg.edit_text(reply, parse_mode="Markdown")
+        else:
+            await wait_msg.edit_text(reply[:4000], parse_mode="Markdown")
+            rest = reply[4000:]
             while rest:
                 await u.message.reply_text(rest[:4000], parse_mode="Markdown")
                 rest = rest[4000:]

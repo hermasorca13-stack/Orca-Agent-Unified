@@ -554,3 +554,136 @@ Verified: \git rev-parse HEAD\ = \7e97aaa34ee5be7c8296a72353793c40ff3dc490\.
 5. **Don't remove the dead provider.** DDG might still work
    from whitelisted IPs or after cookies. The chain costs
    nothing extra; we keep it as the first attempt.
+
+---
+
+## 2026-08-03 ó Orca <-> Termux bidirectional bridge
+
+The user asked: *\"⁄«Ì“ «·ÊﬂÌ· » «⁄Ï orca agent œ«Œ· ÃÌ  Â» Ì „ «‰‘«¡
+« „ … «Ê Ã”— „»«‘— »Ì‰… Ê»Ì‰ termux in my desktop\"*. In other
+words: build an automation / direct bridge between the Orca
+Telegram bot and a phone (or desktop) running Termux.
+
+### Goal
+
+Let the user control their **phone** from anywhere in the world
+through the Orca Telegram bot. The phone does not need a public
+IP, port forwarding, or its own Telegram bot.
+
+### Architecture (2026 stack)
+
+`
+Telegram user
+     ?
+     ?
+???????????????????????????????         ????????????????????????
+? Orca Bot (this repo)        ?         ? Termux on phone      ?
+?  skills/termux_skill.py     ????HTTP????  tools/termux_bridge ?
+?  tools/termux_server.py     ?  poll   ?    (Python daemon)   ?
+?   FastAPI on :8765          ?  3s     ?  Termux:API + shell  ?
+?   + JSONL queue             ?         ????????????????????????
+???????????????????????????????
+`
+
+Transport: **HTTP polling every 3s** (chose over WebSocket/MQTT/SSH
+because it works through any NAT, no tunnel needed, easy to debug
+with curl, ~1s typical latency).
+
+### What changed
+
+- **\	ools/termux_server.py\ (17 KB)** ó Orca-side FastAPI app:
+  - Bearer-token auth (TERMUX_BRIDGE_TOKEN env var)
+  - 7 HTTP endpoints: \/health\, \/pending\, \/command\,
+    \/result\, \/result/{id}\, \/event\, \/events\, \/status\
+  - File-based JSONL queue with thread-safe read/write
+  - Result TTL pruning (default 5 min)
+  - Spontaneous event log (capped at 200 entries)
+  - \push_command()\ sync helper that the bot uses to dispatch
+    a command and block-wait for the phone's reply
+
+- **\	ools/termux_bridge.py\ (19 KB)** ó Phone-side daemon:
+  - Single-file Python, **stdlib only** (no FastAPI/pip on phone)
+  - Polls Orca \/pending\ every N seconds (configurable)
+  - 15 subcommands via Termux:API: battery, wifi, location,
+    notify, toast, vibrate, speak, torch, share, clipboard,
+    uptime, storage, wake, ping, run
+  - Allow-list enforced on phone (defence in depth)
+  - Auto-reconnect with exponential backoff
+  - \doctor\ subcommand to check termux-api installation
+  - \exec\ subcommand to test subcommands locally
+
+- **\skills/termux_skill.py\ (12 KB)** ó Telegram command surface:
+  - 18 subcommands: battery, wifi, location, notify, toast,
+    vibrate, speak, torch, share, clipboard, uptime, storage,
+    wake, ping, run, status, setup, help
+  - \cmd_termux(args, chat_id)\ entry point
+  - Markdown formatting with 3800-char truncation
+  - Friendly error messages with hints
+  - **Arabic/Egyptian synonym map** (\"»ÿ«—Ì…\" -> \"battery\",
+    \"ﬂ‘«›\" -> \"torch\", etc.) for natural-language routing
+
+- **\	elegram_bot/bot.py\** ó wired \/termux\ (and alias \/phone\):
+  - \CommandHandler(\"termux\", self.cmd_termux)\
+  - Added to \BotCommand\ list (Telegram menu)
+  - Added to \SKILL_CATALOG\
+  - \/start\ help text mentions the bridge
+
+- **\skills/intent_skill.py\** ó added 14 new patterns for
+  /termux (English + Egyptian), mapped via \_args_subcommand\
+  helper that strips trigger verbs (\"check my\", \"⁄«Ì“ «⁄—›\")
+  and returns the rest
+
+- **\core/skills_data/termux_bridge.md\** ó design doc with
+  architecture, transport choice rationale, subcommand catalogue,
+  error model, security model, latency budget
+
+### Live verification
+
+End-to-end test (all 7 steps passed in ~1.3s):
+1. Health check (no auth) ? 200 OK
+2. Phone polls, queue empty ? []
+3. Bot posts /command ? id=817f94adde47
+4. Phone polls, gets the command
+5. Phone posts /result ? ok=True
+6. Bot fetches /result/{id} ? 87% battery, DISCHARGING
+7. Phone posts /event (health) ? listable
+
+### Test counts
+
+- 61 new tests across 3 files:
+  - \	ests/test_termux_server.py\ (19 tests)
+  - \	ests/test_termux_bridge.py\ (16 tests, in-process HTTP)
+  - \	ests/test_termux_skill.py\ (26 tests, mocked server)
+- 5 new intent tests for /termux NL patterns
+- **Total: 475 passed, 5 skipped** (up from 409)
+
+### Lessons learned
+
+1. **HTTP polling wins for NAT bypass.** WebSocket / MQTT / SSH
+   tunnel all need an external server or port forwarding. HTTP
+   polling is the only thing that Just Works through any WiFi/cell
+   network with zero infrastructure.
+2. **Bearer token auth is the right fit.** Both sides are
+   short-lived and trusted; we don't need OAuth or mTLS. A single
+   env var is enough.
+3. **JSONL queue > SQLite > Redis.** File-based queue survives
+   bot restarts, is human-inspectable (\jq -c . data/termux_queue.jsonl\),
+   adds zero new dependencies.
+4. **Lazy import of FastAPI in the skill.** The bot doesn't
+   pull in FastAPI at startup ó only when /termux is first
+   called. Saves ~80ms on cold start and avoids breaking the
+   bot if the bridge is not configured.
+5. **Defence-in-depth on the allow-list.** Both the bot AND
+   the phone validate subcommands. The phone is the source of
+   truth ó the bot's check is just for nicer error messages.
+6. **Mocked HTTP with \http.server.HTTPServer\.** Testing the
+   daemon's poll loop is easy: spin up a BaseHTTPRequestHandler
+   on 127.0.0.1, run the bridge in a thread for 0.5s, then
+   assert the server received the expected requests.
+7. **Synonym map for NL->command routing.** Arabic users say
+   \"»ÿ«—Ì…\" but the English subcommand is \attery\". A 30-line
+   dict bridges the gap. Add more entries as new phrasings emerge.
+8. **Don't break \/status\ for general \"Õ«·…\" queries.** The
+   new termux pattern required the phone suffix (\"«·„Ê»«Ì·\" /
+   \" ·Ì›Ê‰Ì\") ó without it, \"«ÌÂ Õ«·… «·”Ì—›—ø\" would be
+   misclassified as /termux.

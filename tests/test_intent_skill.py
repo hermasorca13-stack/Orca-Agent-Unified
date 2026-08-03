@@ -130,6 +130,34 @@ class TestPattern:
         # "ايه" is an Egyptian marker, so the dialect tag is "ar-eg".
         assert out.language == "ar-eg"
 
+    # ---- Termux bridge (2026-08-03) ----
+    def test_termux_english(self):
+        out = classify("check my phone battery", use_llm=False)
+        assert out.command == "/termux"
+        # Trigger verb + "phone" are stripped; "battery" is the subcommand
+        assert "battery" in out.args or "phone" in out.args or \
+               "status" in out.args
+
+    def test_termux_arabic_phone_battery(self):
+        out = classify("ايه بطارية الموبايل", use_llm=False)
+        assert out.command == "/termux"
+        # Args are the post-trigger words; the bot's cmd_termux handler
+        # does the synonym lookup against SUBCOMMANDS
+
+    def test_termux_arabic_know_status(self):
+        out = classify("عايز اعرف حالة البطارية", use_llm=False)
+        assert out.command == "/termux"
+
+    def test_termux_explicit_command(self):
+        out = classify("/termux battery", use_llm=False)
+        assert out.command == "/termux"
+        assert "battery" in out.args
+
+    def test_termux_phone_status(self):
+        out = classify("phone status", use_llm=False)
+        assert out.command == "/termux"
+        assert "status" in out.args
+
     def test_msa_arabic_keeps_ar_tag(self):
         # Pure MSA without colloquial markers stays "ar" (not "ar-eg").
         out = classify("الطقس في القاهرة", use_llm=False)
