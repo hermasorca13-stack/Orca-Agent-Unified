@@ -120,7 +120,25 @@ try {
 }
 
 # ---------------------------------------------------------------------
-# 4. Clone (or update) the repo
+# 4. Cache redirection (pip + model caches to D: drive)
+# ---------------------------------------------------------------------
+Write-Step "Step 3.5 / 10 - Redirecting caches to D: drive"
+$cacheRoot = Join-Path $InstallDir "cache"
+$cacheScript = Join-Path $repoDir "setup\cache_setup.ps1"
+if (Test-Path $cacheScript) {
+    $junctionFlag = ""
+    $useJunc = Read-Host "  Also create NTFS junctions for default cache paths? (y/N)"
+    if ($useJunc -eq 'y') { $junctionFlag = "-UseJunctions" }
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $cacheScript -CacheRoot $cacheRoot $junctionFlag
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "cache_setup.ps1 exited with $LASTEXITCODE (continuing)"
+    }
+} else {
+    Write-Warn "cache_setup.ps1 not found, skipping cache redirect"
+}
+
+# ---------------------------------------------------------------------
+# 5. Clone (or update) the repo
 # ---------------------------------------------------------------------
 Write-Step "Step 3 / 10 - Cloning Orca Agent to $InstallDir"
 $repoDir = Join-Path $InstallDir "Orca-Agent-Unified"

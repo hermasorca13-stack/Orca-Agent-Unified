@@ -62,6 +62,15 @@ if (Test-Path $envFile) {
     Write-Log ".env not found at $envFile" "WARN"
 }
 
+# Load cache env vars (redirects pip/HF/torch caches to D: drive)
+$cacheEnvFile = Join-Path $RepoDir "cache\cache_env.ps1"
+if (Test-Path $cacheEnvFile) {
+    . $cacheEnvFile
+    Write-Log "Loaded cache env from $cacheEnvFile"
+} else {
+    Write-Log "cache_env.ps1 not found at $cacheEnvFile (run setup\cache_setup.ps1)" "WARN"
+}
+
 # Check required tokens
 if (-not $env:TELEGRAM_BOT_TOKEN) {
     Write-Log "TELEGRAM_BOT_TOKEN is empty. Bot will start but won't connect." "WARN"
