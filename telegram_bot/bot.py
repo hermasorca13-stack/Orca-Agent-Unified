@@ -76,6 +76,8 @@ class OrcaBot:
         h(CommandHandler("phone", self.cmd_termux))  # alias
         h(CommandHandler("remind", self.cmd_remind))
         h(CommandHandler("reminder", self.cmd_remind))  # alias
+        h(CommandHandler("note", self.cmd_note))
+        h(CommandHandler("notes", self.cmd_note))  # alias
         # --- Adaptive natural-language intent (additive) ---
         h(CommandHandler("intent", self.cmd_intent))
         # --- EFI-OS external tool wrapper (additive) ---
@@ -153,6 +155,7 @@ class OrcaBot:
                 # 2026-08-03 ADD: Orca <-> Termux bridge (HTTP-polled, bidirectional)
                 BotCommand("termux", "Phone bridge (battery/wifi/location/notify/run/...)"),
                 BotCommand("remind", "Set reminder (in 30m call mom / after 1h check oven)"),
+                BotCommand("note", "Persistent notes (add/list/search/delete/tag)"),
                 # 2026-07-29 ADD: diag + setup wizard + cancel FSM
                 BotCommand("diag", "Diagnostics (self-heal report)"),
                 BotCommand("setup", "Set LLM API key (wizard)"),
@@ -1428,6 +1431,106 @@ class OrcaBot:
             while rest:
                 await u.message.reply_text(rest[:4000], parse_mode="Markdown")
                 rest = rest[4000:]
+
+    async def cmd_note(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/note <text>            - add note (extracts #tags)
+        /note list                - list my notes
+        /note search <query>      - full-text search
+        /note get <id>            - show full text
+        /note delete <id>         - delete
+        /note tag <id> <tag>      - add tag
+        /note update <id> <text>  - replace text
+        /note help                - this help
+        """
+        from core.middleware import friendly_error
+        from skills import notes_skill as ns
+        args = c.args or []
+        user_id = u.effective_user.id if u.effective_user else 0
+        skill = ns.get_skill()
+        if not args:
+            await u.message.reply_text(self._note_help())
+            return
+        sub = args[0].lower()
+        if sub == "list":
+            tag = args[1] if len(args) > 1 and args[1].startswith("#") else None
+            tag = tag.lstrip("#") if tag else None
+            await u.message.reply_text(ns.format_list(skill.list_user(user_id, tag)))
+            return
+        if sub == "search":
+            if len(args) < 2:
+                await u.message.reply_text("Usage: /note search <query>")
+                return
+            q = " ".join(args[1:])
+            await u.message.reply_text(ns.format_search(skill.search(user_id, q), q))
+            return
+        if sub == "get":
+            if len(args) < 2:
+                await u.message.reply_text("Usage: /note get <id>")
+                return
+            n = skill.get(user_id, args[1])
+            if n is None:
+                await u.message.reply_text(f"Not found: {args[1]}")
+                return
+            tags = f"\nTags: {', '.join(n.tags)}" if n.tags else ""
+            await u.message.reply_text(f"{n.id}\n{n.text}{tags}")
+            return
+        if sub == "delete":
+            if len(args) < 2:
+                await u.message.reply_text("Usage: /note delete <id>")
+                return
+            ok = skill.delete(user_id, args[1])
+            await u.message.reply_text("Deleted" if ok else f"Not found: {args[1]}")
+            return
+        if sub == "tag":
+            if len(args) < 3:
+                await u.message.reply_text("Usage: /note tag <id> <tag>")
+                return
+            tag = args[2].lstrip("#")
+            n = skill.tag(user_id, args[1], tag)
+            await u.message.reply_text(
+                f"Tagged {n.id} with #{tag}" if n else f"Not found: {args[1]}"
+            )
+            return
+        if sub == "update":
+            if len(args) < 3:
+                await u.message.reply_text("Usage: /note update <id> <text>")
+                return
+            new_text = " ".join(args[2:])
+            n = skill.update(user_id, args[1], new_text)
+            await u.message.reply_text(
+                f"Updated {n.id}" if n else f"Not found: {args[1]}"
+            )
+            return
+        if sub == "help":
+            await u.message.reply_text(self._note_help())
+            return
+        # default: add a note with the rest of the args
+        text = " ".join(args)
+        try:
+            n = skill.add(user_id, text)
+            tags = f" [{', '.join(n.tags)}]" if n.tags else ""
+            preview = n.text if len(n.text) <= 80 else n.text[:77] + "..."
+            await u.message.reply_text(
+                f"Note saved: {n.id}{tags}\n{preview}"
+            )
+        except ValueError:
+            await u.message.reply_text("Note text is empty. Try: /note buy milk #shopping")
+        except Exception as e:
+            logger.exception("cmd_note error")
+            await u.message.reply_text(friendly_error(e))
+
+    def _note_help(self) -> str:
+        return (
+            "Notes skill:\n"
+            "/note <text> [#tag ...]   - add note\n"
+            "/note list [#tag]         - list my notes\n"
+            "/note search <query>      - full-text search\n"
+            "/note get <id>            - show full note\n"
+            "/note update <id> <text>  - replace text\n"
+            "/note tag <id> <tag>      - add tag\n"
+            "/note delete <id>         - delete\n"
+            "Tags: prefix with # (e.g. #work #urgent)"
+        )
 
     async def cmd_remind(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """/remind <time phrase> [body]  OR  /remind list  OR  /remind cancel <id>
