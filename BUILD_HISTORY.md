@@ -324,3 +324,53 @@ turned both into a production-grade Python skill.
    else if path starts with `/shorts/`, `/embed/`, `/live/`,
    or `/v/` -> the next path segment is the ID; else
    `/watch?v=...` from the query string.
+
+### 2026-08-03 — Live test against real YouTube + v1.2.x API compatibility
+
+After pushing the YouTube skill, we ran a real end-to-end test
+against a public Egyptian video
+(`https://www.youtube.com/watch?v=7M5XZ6rRw7k` — "ÚãáÊ ãÔÑæÚ íÏÎá
+950\$ ÇæÊæãÇÊíß ãä ÛíÑ ÎÈÑå", by "ÕİÑ Úáí Çáíãíä", about earning
+money online in 2026).
+
+#### Result
+
+| Step                              | Status | Latency  |
+| --------------------------------- | ------ | -------- |
+| URL parser                        | OK     | 0.1ms    |
+| oEmbed metadata                   | OK     | 203ms    |
+| Transcript (auto-generated Arabic)| OK     | 1,506ms  |
+| analyze() pipeline                | OK     | 1,529ms  |
+| Telegram card render              | OK     | <50ms    |
+
+The transcript pipeline produced **575 real Arabic caption
+segments, 4,372 words, 23.7 minutes of speech**. The heuristic
+summary correctly extracted the opening thesis: "ßËíÑ ãääÇ ßáäÇ İí
+ÇáŞäÇå åäÇ ãÍÊÇÌíä Çä ÇÍäÇ äÚãá İáæÓ Çæä áÇíä". Real data
+points surfaced: "25\$ free credit", "Pro plan 15\$/month".
+
+#### API compatibility fix
+
+The installed library at runtime was `youtube-transcript-api==1.2.4`
+(January 2026 release), which uses `FetchedTranscriptSnippet`
+dataclass objects with attribute access (`.text`, `.start`,
+`.duration`) instead of the `dict` style from v0.6.x. Without
+the fix, the skill would crash with::
+
+    AttributeError: 'FetchedTranscriptSnippet' object has no attribute 'get'
+
+Fix: a new `_normalise()` helper inside `_fetch_transcript_yta`
+coerces both v0.6.x dicts and v1.2.x dataclass snippets into a
+uniform internal `dict` shape. The rest of the skill is
+library-version-agnostic. This is the same defensive pattern we use
+everywhere else: never trust the shape of an external library.
+
+#### Lessons
+
+1. **Always test against the live library, not just a mock.** Our
+   test suite covered dict-style snippets; the real install
+   ships dataclass snippets. A live test caught this in one
+   minute that 67 unit tests missed.
+2. **Pin a minimum version, not a maximum.** The requirements
+   say `>=0.6.2`, which is correct: both v0.6.x and v1.2.x
+   must work. Pinning to `==1.2.4` would have broken v0.6 users.

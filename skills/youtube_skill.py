@@ -564,6 +564,13 @@ def _fetch_transcript_yta(
     Returns ``(raw_segments, language, language_code, is_generated, source)``.
     Raises ``ImportError`` if the library is missing and ``Exception`` for
     YouTube-side errors (caller maps these to ``TranscriptError``).
+
+    The library API has TWO SHAPES in 2026:
+      - v0.6.x: snippets are ``dict`` with ``["text", "start", "duration"]``
+      - v1.2.x: snippets are ``FetchedTranscriptSnippet`` dataclass
+        with ``.text``, ``.start``, ``.duration`` attributes
+    We normalise both to a uniform ``dict`` shape so the rest of the
+    skill is library-version agnostic.
     """
     from youtube_transcript_api import YouTubeTranscriptApi  # type: ignore
     from youtube_transcript_api._errors import (  # type: ignore
@@ -571,6 +578,25 @@ def _fetch_transcript_yta(
         TranscriptsDisabled,
         VideoUnavailable,
     )
+
+    def _normalise(raw_list):
+        """Coerce either dicts or dataclass snippets into plain dicts."""
+        out: List[Dict[str, Any]] = []
+        for entry in raw_list:
+            if isinstance(entry, dict):
+                out.append({
+                    "text": entry.get("text", ""),
+                    "start": entry.get("start", 0.0),
+                    "duration": entry.get("duration", 0.0),
+                })
+            else:
+                # dataclass-style snippet (v1.2.x)
+                out.append({
+                    "text": getattr(entry, "text", ""),
+                    "start": float(getattr(entry, "start", 0.0)),
+                    "duration": float(getattr(entry, "duration", 0.0)),
+                })
+        return out
 
     api = YouTubeTranscriptApi()
     listing = api.list(video_id)
@@ -590,7 +616,7 @@ def _fetch_transcript_yta(
         try:
             t = listing.find_manually_created_transcript([code])
             return (
-                t.fetch(), t.language, t.language_code,
+                _normalise(t.fetch()), t.language, t.language_code,
                 False, "manual-caption",
             )
         except Exception:
@@ -600,7 +626,7 @@ def _fetch_transcript_yta(
         try:
             t = listing.find_generated_transcript([code])
             return (
-                t.fetch(), t.language, t.language_code,
+                _normalise(t.fetch()), t.language, t.language_code,
                 True, "auto-caption",
             )
         except Exception:
@@ -614,7 +640,7 @@ def _fetch_transcript_yta(
                 try:
                     translated = t.translate(code)
                     return (
-                        translated.fetch(), t.language,
+                        _normalise(translated.fetch()), t.language,
                         code, t.is_generated, "translated",
                     )
                 except Exception:
