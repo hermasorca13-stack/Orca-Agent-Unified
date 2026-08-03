@@ -87,7 +87,7 @@ Write-Host "  mkdir -p ~/orca_bridge ; cd ~/orca_bridge" -ForegroundColor White
 Write-Host ""
 Write-Host "  # Download the daemon:" -ForegroundColor White
 Write-Host "  curl -O https://raw.githubusercontent.com/hermasorca13-stack/" -ForegroundColor White
-Write-Host "       Orca-Agent-Unified/master/tools/termux_bridge.py" -ForegroundColor White
+Write-Host "       Orca-Agent-Unified/main/tools/termux_bridge.py" -ForegroundColor White
 Write-Host ""
 Write-Host "  # Create the config (paste the JSON above):" -ForegroundColor White
 Write-Host "  nano termux_bridge.json" -ForegroundColor White

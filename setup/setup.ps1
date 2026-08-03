@@ -19,7 +19,7 @@ Usage (from PowerShell, as Administrator):
 
     # Easiest: one-liner from the web
     Set-ExecutionPolicy Bypass -Scope Process -Force
-    iwr -useb https://raw.githubusercontent.com/hermasorca13-stack/Orca-Agent-Unified/master/setup/setup.ps1 | iex
+    iwr -useb https://raw.githubusercontent.com/hermasorca13-stack/Orca-Agent-Unified/main/setup/setup.ps1 | iex
 
     # Or after cloning manually:
     cd "D:\ORCA AGENT\Orca-Agent-Unified\setup"
@@ -220,7 +220,7 @@ if (-not (Test-Path $envExample)) {
         'GITHUB_ORG=hermasorca13-stack',
         'GITHUB_EMAIL=hermasorca13@gmail.com',
         'GITHUB_REPO=Orca-Agent-Unified',
-        'GITHUB_BRANCH=master',
+        'GITHUB_BRANCH=main',
         '',
         '# LLM (OPTIONAL - bot has offline fallbacks)',
         'OPENAI_API_KEY=',
@@ -231,7 +231,7 @@ if (-not (Test-Path $envExample)) {
         'TERMUX_BRIDGE_PORT=8765',
         'TERMUX_BRIDGE_HOST=0.0.0.0',
         '',
-        '# Master / production',
+        '# main / production',
         "ORCA_MASTER=$gitTokenValue",
         'RUN_MODE=production',
         'LOG_LEVEL=INFO'

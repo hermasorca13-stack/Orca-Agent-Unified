@@ -210,7 +210,7 @@ class OrcaBot:
             f"Bot: ✅ @{config.TG_USERNAME}\n"
             f"GitHub: {config.GH_REPO} @ {config.GH_BRANCH}\n"
             f"GH token: {'✅' if config.GH_TOKEN else '❌'}\n"
-            f"Master: {'✅' if config.ORCA_MASTER else '❌'}\n"
+            f"main: {'✅' if config.ORCA_MASTER else '❌'}\n"
             f"Tokens: {api.count()}\n"
             f"Mode: {config.RUN_MODE}"
         )
@@ -277,7 +277,7 @@ class OrcaBot:
         await u.message.reply_text(f"{'✅' if r['ok'] else '❌'} {r['msg']}")
 
     async def cmd_update(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
-        """Pull latest code from GitHub master and restart the bot.
+        """Pull latest code from GitHub main and restart the bot.
 
         This is the production self-update path. The local clone runs
         `git pull --ff-only origin <branch>`, then the current Python

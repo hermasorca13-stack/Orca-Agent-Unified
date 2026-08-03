@@ -10,7 +10,7 @@ then paste this one-liner:
 
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force ; `
-iwr -useb https://raw.githubusercontent.com/hermasorca13-stack/Orca-Agent-Unified/master/setup/setup.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/hermasorca13-stack/Orca-Agent-Unified/main/setup/setup.ps1 | iex
 ```
 
 The script will:

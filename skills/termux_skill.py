@@ -322,7 +322,7 @@ def _setup_text() -> str:
         f"cd ~/orca_bridge\n"
         f"# Download the daemon:\n"
         f"curl -O https://raw.githubusercontent.com/hermasorca13-stack/\n"
-        f"     Orca-Agent-Unified/master/tools/termux_bridge.py\n"
+        f"     Orca-Agent-Unified/main/tools/termux_bridge.py\n"
         f"# Create the config:\n"
         f"cat > termux_bridge.json <<'JSON'\n"
         + json.dumps({

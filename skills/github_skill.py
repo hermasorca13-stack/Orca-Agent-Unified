@@ -121,7 +121,7 @@ def list_prs(state: str = "open", limit: int = 20, full_name: Optional[str] = No
     } for p in r.get_pulls(state=state)[:limit]]
 
 
-def create_pr(title: str, head: str, base: str = "master", body: str = "",
+def create_pr(title: str, head: str, base: str = "main", body: str = "",
               full_name: Optional[str] = None) -> Dict[str, Any]:
     r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     p = r.create_pull(title=title, body=body, head=head, base=base)
@@ -158,7 +158,7 @@ def list_branches(full_name: Optional[str] = None) -> List[Dict[str, Any]]:
     return [{"name": b.name, "protected": b.protected} for b in r.get_branches()]
 
 
-def create_branch(branch: str, from_branch: str = "master", full_name: Optional[str] = None) -> Dict[str, Any]:
+def create_branch(branch: str, from_branch: str = "main", full_name: Optional[str] = None) -> Dict[str, Any]:
     r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     src = r.get_branch(from_branch)
     r.create_git_ref(ref=f"refs/heads/{branch}", sha=src.commit.sha)
@@ -166,7 +166,7 @@ def create_branch(branch: str, from_branch: str = "master", full_name: Optional[
 
 
 # ---------- contents ----------
-def get_file(path: str, ref: str = "master", full_name: Optional[str] = None) -> Dict[str, Any]:
+def get_file(path: str, ref: str = "main", full_name: Optional[str] = None) -> Dict[str, Any]:
     r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     try:
         c = r.get_contents(path, ref=ref)
@@ -177,7 +177,7 @@ def get_file(path: str, ref: str = "master", full_name: Optional[str] = None) ->
         return {"error": str(e)}
 
 
-def create_or_update_file(path: str, content: str, message: str, branch: str = "master",
+def create_or_update_file(path: str, content: str, message: str, branch: str = "main",
                           full_name: Optional[str] = None) -> Dict[str, Any]:
     r = _gh().get_repo(full_name or config.GH_FULL_NAME)
     sha = None

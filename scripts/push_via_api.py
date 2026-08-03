@@ -25,7 +25,7 @@ load_dotenv(ROOT / ".env")
 GH_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 GH_USER = os.getenv("GITHUB_USERNAME", "").strip()
 GH_REPO = os.getenv("GITHUB_REPO", "").strip()
-BRANCH = os.getenv("GITHUB_BRANCH", "master").strip()
+BRANCH = os.getenv("GITHUB_BRANCH", "main").strip()
 
 if not GH_TOKEN or not GH_USER or not GH_REPO:
     print("❌ Missing GITHUB_TOKEN / GITHUB_USERNAME / GITHUB_REPO in .env")
