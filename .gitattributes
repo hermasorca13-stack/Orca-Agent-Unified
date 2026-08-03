@@ -1,0 +1,44 @@
+# .gitattributes — line-ending policy
+# Goal: zero-loss integrity across operating systems.
+#
+# Without this file, Windows git clients convert *.py from LF to
+# CRLF on checkout. That changes the SHA-256 of the file, which
+# breaks the EFI-OS integrity check in skills/efi_os_skill.py.
+# We force LF for all text files so the SHA-256 is stable.
+
+# All Python source: LF only
+*.py text eol=lf
+
+# All PowerShell: CRLF (Windows-native, but git may convert)
+*.ps1 text eol=crlf
+
+# Markdown, YAML, JSON, TOML, INI, env files: LF
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+*.env text eol=lf
+*.example text eol=lf
+
+# Shell scripts: LF
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Explicitly mark binary files
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.exe binary
+*.dll binary
+*.so binary
+*.pyc binary
+*.pyd binary
+
+# EFI-OS bundled tool: it's Python but we treat it as binary
+# because the SHA-256 in skills/efi_os_skill.py must be exact
+tools/EFI_OS.py binary
