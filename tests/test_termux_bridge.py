@@ -1,5 +1,5 @@
 """
-Tests for tools/termux_bridge.py — the phone-side daemon.
+Tests for tools/termux_bridge.py - the phone-side daemon.
 
 We test the bits that don't require an actual phone:
   - Config loader
@@ -333,7 +333,7 @@ class TestBridgeLoop:
         # We should have polled at least once
         assert _PollingServer.request_count >= 1, \
             f"server got {_PollingServer.request_count} requests"
-        # Find the /result POST (has "id" field) — the daemon may have
+        # Find the /result POST (has "id" field) - the daemon may have
         # also pushed a /event health post which doesn't have an "id".
         result_posts = [p for p in _PollingServer.received_posts
                         if "id" in p]

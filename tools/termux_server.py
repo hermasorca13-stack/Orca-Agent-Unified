@@ -1,5 +1,5 @@
 """
-tools/termux_server.py — Orca-side HTTP bridge for the Termux daemon.
+tools/termux_server.py - Orca-side HTTP bridge for the Termux daemon.
 
 This is the half of the Orca<->Termux bridge that lives on the Orca
 side. The phone runs `tools/termux_bridge.py` (the daemon); this
@@ -417,7 +417,7 @@ async def get_command_result(
 
 
 # ---------------------------------------------------------------------
-# Convenience helpers for the bot (not HTTP endpoints — import-only)
+# Convenience helpers for the bot (not HTTP endpoints - import-only)
 # ---------------------------------------------------------------------
 def push_command(chat_id: int, subcommand: str, args: Optional[List[str]] = None,
                  timeout: float = 15.0, poll_interval: float = 0.5) -> Dict[str, Any]:
@@ -444,7 +444,7 @@ def push_command(chat_id: int, subcommand: str, args: Optional[List[str]] = None
                 "result": r.get("result"),
                 "error": r.get("error", ""),
             }
-    # Timed out — leave the entry in the queue for the next poll
+    # Timed out - leave the entry in the queue for the next poll
     return {
         "ok": False,
         "id": cmd_id,
@@ -469,7 +469,7 @@ def get_endpoint_url() -> str:
 # ---------------------------------------------------------------------
 def main() -> None:  # pragma: no cover
     import uvicorn
-    print(f"Orca Termux Bridge — listening on {HOST}:{PORT}")
+    print(f"Orca Termux Bridge - listening on {HOST}:{PORT}")
     print(f"Queue file:    {QUEUE_PATH}")
     print(f"Auth token:    {TOKEN[:6]}...{TOKEN[-4:]}")
     print(f"  (full token in env TERMUX_BRIDGE_TOKEN or printed above)")

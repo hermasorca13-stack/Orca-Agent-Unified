@@ -1,5 +1,5 @@
 """
-Tests for tools/termux_server.py — the Orca-side HTTP bridge.
+Tests for tools/termux_server.py - the Orca-side HTTP bridge.
 
 Strategy: use FastAPI's TestClient to drive the endpoints. We
 override TERMUX_BRIDGE_TOKEN so we know what to send. The queue

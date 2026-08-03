@@ -1,11 +1,11 @@
 """
-skills/termux_skill.py — Telegram command surface for the Orca<->Termux bridge.
+skills/termux_skill.py - Telegram command surface for the Orca<->Termux bridge.
 
 The bot calls `cmd_termux(update, context)` from `telegram_bot/bot.py`.
 This skill:
 
   1. Parses the subcommand and args from the user message
-  2. Validates against the allow-list (defence in depth — the phone
+  2. Validates against the allow-list (defence in depth - the phone
      also enforces this, but we want to reject early)
   3. Calls `tools/termux_server.push_command(chat_id, sub, args)`
      which blocks (with polling) until the phone answers
@@ -174,7 +174,7 @@ def cmd_termux(args: List[str], chat_id: int) -> str:
                  can be matched back to the right user).
 
     Returns:
-        A Markdown-formatted string for Telegram. Never raises —
+        A Markdown-formatted string for Telegram. Never raises -
         all errors are caught and turned into user-friendly messages.
     """
     if not args:
@@ -256,7 +256,7 @@ TELEGRAM_MAX = 3800  # leave room for headers + Markdown
 def _truncate(text: str, limit: int = TELEGRAM_MAX) -> str:
     if len(text) <= limit:
         return text
-    return text[: limit - 50] + "\n\n[… truncated …]"
+    return text[: limit - 50] + "\n\n[... truncated ...]"
 
 
 def _format_success(sub: str, result: Dict[str, Any], elapsed_ms: float) -> str:
@@ -302,7 +302,7 @@ def _status_text() -> str:
         f"Queue size: `{s.get('queue_size', 0)}` pending\n"
         f"Completed:  `{s.get('completed_total', 0)}` total\n"
         f"Last poll:  `{s.get('last_poll', 0):.0f}` (epoch)\n"
-        f"Token:      `{token[:4]}…{token[-4:]}`\n"
+        f"Token:      `{token[:4]}...{token[-4:]}`\n"
     )
 
 
@@ -314,7 +314,7 @@ def _setup_text() -> str:
     token = server.get_token()
     url = server.get_endpoint_url()
     return (
-        "🛠 *Orca ↔ Termux Bridge — Phone Setup*\n\n"
+        "🛠 *Orca ↔ Termux Bridge - Phone Setup*\n\n"
         f"On your phone (Termux), run:\n"
         f"```\n"
         f"pkg install python termux-api\n"
@@ -350,9 +350,9 @@ def _setup_text() -> str:
 
 
 def _help_text() -> str:
-    lines = ["📱 *Orca ↔ Termux Bridge — Subcommands*\n"]
+    lines = ["📱 *Orca ↔ Termux Bridge - Subcommands*\n"]
     for sub, spec in SUBCOMMANDS.items():
-        lines.append(f"  `/termux {sub:<10}` — {spec['summary']}")
+        lines.append(f"  `/termux {sub:<10}` - {spec['summary']}")
     lines.append(
         "\nLocal-only: `setup`, `status`, `help` (no phone needed)\n"
         "The phone must be running `termux_bridge.py` for the rest."

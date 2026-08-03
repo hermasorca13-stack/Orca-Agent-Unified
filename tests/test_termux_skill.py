@@ -1,5 +1,5 @@
 """
-Tests for skills/termux_skill.py — the Telegram command surface.
+Tests for skills/termux_skill.py - the Telegram command surface.
 
 We mock tools.termux_server so the skill can be tested without
 needing the FastAPI app to actually run.

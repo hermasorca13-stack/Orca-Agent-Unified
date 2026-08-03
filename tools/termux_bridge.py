@@ -1,5 +1,5 @@
 """
-tools/termux_bridge.py — Phone-side daemon for the Orca bridge.
+tools/termux_bridge.py - Phone-side daemon for the Orca bridge.
 
 This is the half of the Orca<->Termux bridge that lives on the phone.
 Run it inside Termux on Android:
@@ -33,7 +33,7 @@ Configuration (termux_bridge.json in the same dir):
                           "storage", "wake", "ping"]
   }
 
-No external Python deps — stdlib only. This script must run in
+No external Python deps - stdlib only. This script must run in
 Termux, not on a server (Termux:API commands are Android-only).
 """
 from __future__ import annotations

@@ -687,3 +687,81 @@ End-to-end test (all 7 steps passed in ~1.3s):
    new termux pattern required the phone suffix (\"ÇáãæÈÇíá\" /
    \"ÊáíÝæäí\") — without it, \"Çíå ÍÇáÉ ÇáÓíÑÝÑ¿\" would be
    misclassified as /termux.
+
+---
+
+## 2026-08-03 — One-shot Windows installer (setup/)
+
+The user asked to move the Orca Agent from this dev environment
+to their laptop (\smoha\: i7-6820HQ, 16 GB RAM, Win 10 Pro
+22H2, target \D:\ORCA AGENT\). We built a complete PowerShell
+installer that does the full setup in one shot.
+
+### What ships
+
+- \setup/setup.ps1\ (15 KB) - one-shot installer with
+  progress reporting, admin check, configurable paths
+- \setup/run_bot.ps1\ (3 KB) - the actual bot runner
+  (loaded by Task Scheduler; loads .env, activates venv, runs
+  the bot, logs to logs\orca.log with rotation)
+- \setup/keep_awake.ps1\ (3 KB) - Windows sleep-prevention
+  watchdog using SetThreadExecutionState Win32 API
+- \setup/health_check.ps1\ (4 KB) - periodic health probe
+  (every 5 min via Task Scheduler) with Telegram alerts
+- \setup/termux_setup.ps1\ (4 KB) - generates the
+  termux_bridge.json for the phone with auto-detected LAN IP
+- \setup/uninstall.ps1\ (2 KB) - clean removal
+- \setup/README.md\ (6 KB) - quickstart + troubleshooting
+
+### What gets installed (via Task Scheduler)
+
+| Task | Trigger | Purpose |
+|------|---------|---------|
+| OrcaAgent | At logon | Runs the bot, auto-restart on crash |
+| OrcaAgentKeepAwake | At logon | Prevents Windows sleep when bot is up |
+| OrcaAgentHealthCheck | Every 5 min | Pings bot + bridge, alerts via Telegram |
+
+### One-liner the user runs on their laptop
+
+\\\powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+iwr -useb https://raw.githubusercontent.com/hermasorca13-stack/Orca-Agent-Unified/master/setup/setup.ps1 | iex
+\\\
+
+### Lessons learned (the hard way)
+
+1. **Em-dashes and smart quotes are footguns in PowerShell.**
+   When we wrote the script with markdown-flavored em-dashes
+   (—), they got encoded as UTF-8 but the file was re-read
+   as Latin-1, producing mojibake (\â€"\). PowerShell 5.1
+   sees this as a multi-byte token and refuses to parse the
+   file (\The term 'X' is not recognized\).
+   Fix: use ASCII hyphens (-) only in PowerShell scripts.
+2. **Heredocs with \if/else\ inside break the parser.**
+   The C#-style \@\u201c...\u201d@\ heredoc with embedded
+   \if () { ... } else { ... }\ confuses PowerShell because
+   the curly braces in the interpolation get miscounted.
+   Fix: compute values into variables first, then interpolate
+   in a simple heredoc. Or use a string array.
+3. **Trailing commas in arrays break PS 5.1.**
+   \@( 'a', 'b', 'c', )\u00a0 is fine in PS 7 but PS 5.1 says
+   \Missing expression after ','\. Always omit the trailing comma.
+4. **The \&&\ operator does not exist in PowerShell.**
+   Use \;\ (sequential) or \-and\ (boolean).
+5. **Single quotes inside double-quoted strings are fine
+   in theory but the parser chokes on specific patterns.**
+   When in doubt, just rewrite the string without inner quotes.
+6. **The .NET Parser API parses more leniently than runtime.**
+   \[Parser]::ParseFile(...)\ said the file was clean even when
+   \powershell -File ...\ failed at runtime with the same content.
+   Always smoke-test the actual run, not just the parse.
+
+### Test results
+
+- All 6 setup scripts: \[Parser]::ParseFile()\ returns 0 errors
+- \setup.ps1 -SkipTests -SkipService -SkipKeepAwake -SkipHealth\:
+  Step 0 (admin check) runs and aborts gracefully on non-admin
+  - **Correct behavior** - the user will run it elevated
+- All 475 existing tests still pass
+- Mojibake fix in termux_skill.py: 503 -> 476 non-ASCII chars
+  (preserved 263 Arabic, removed 27 mojibake sequences)
