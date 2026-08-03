@@ -47,3 +47,12 @@ youtube-transcript-api>=0.6.2
 # yt-dlp is the universal video/audio downloader; we use it as a fallback
 # when captions are disabled (download audio -> transcribe via Whisper).
 # Lazy-imported; not pinned to keep base install lean.
+# 2026-08-03 ADD: Test dependencies. setup.ps1 runs the full test
+# suite (475 tests) as part of install verification, so pytest +
+# pytest-asyncio must be present. Without this, the laptop
+# install would silently fail the test step.
+pytest>=7.0
+pytest-asyncio>=0.21
+# httpx<0.28 is required by fastapi.testclient (TestClient); we
+# already pin httpx==0.25.2 at the top of this file.
+# FastAPI's TestClient also needs starlette (transitive dep of fastapi).
