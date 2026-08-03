@@ -1,33 +1,39 @@
-CANONICAL LOCATION OF ORCA AGENT
-=================================
+================================================================
+   CANONICAL LOCATION OF ORCA AGENT
+================================================================
 
-> Restored 2026-08-03: GitHub repo re-activated as a mirror.
-> See HISTORY_NO_REMOTE_PHASE.md for the local-only phase history.
+This file is the single source of truth for where Orca Agent lives,
+both on disk and in the cloud. Updated 2026-08-03.
 
-This file is the source of truth for where Orca Agent lives on disk.
+----------------------------------------------------------------
+CURRENT STATE (post-2026-08-03)
+----------------------------------------------------------------
 
-  CANONICAL PATH:   D:\ORCA AGENT\Orca-Agent-Unified\
-  ALTERNATE:        /d/ORCA AGENT/Orca-Agent-Unified/   (WSL/Git Bash)
-  CLOUD MIRROR:     https://github.com/hermasorca13-stack/Orca-Agent-Unified
-  GIT REMOTE:       origin (HTTPS, restored 2026-08-03)
-  DEFAULT BRANCH:   main
+  CANONICAL PATH:    D:\ORCA AGENT\Orca-Agent-Unified\
+  ALTERNATE (WSL):   /d/ORCA AGENT/Orca-Agent-Unified/
+  CLOUD MIRROR:      https://github.com/hermasorca13-stack/Orca-Agent-Unified
+  GIT REMOTE:        origin (HTTPS, restored 2026-08-03)
+  DEFAULT BRANCH:    main
+  HEAD:              cb99c4100b4dbf39a97642818f4e5139b6bd1a80
+
+The D: drive is the source of truth. The GitHub repo is a mirror.
+Every change happens in D: first, then is pushed to GitHub.
 
 DO NOT clone or copy this project to any other path. The setup script
-in setup/setup.ps1 targets D:\ORCA AGENT specifically.
+in setup/setup.ps1 targets D:\ORCA AGENT specifically. If you find a
+copy anywhere else (C:, Desktop, Downloads, etc.), please delete it.
 
-History (per user request on 2026-08-03):
-  - The user explicitly required the project to live at D:\ORCA AGENT
-  - All C: copies were removed (no duplicates anywhere)
-  - All future work happens ONLY in D:\ORCA AGENT\Orca-Agent-Unified
-  - All future updates pushed to GitHub from D: only
+----------------------------------------------------------------
+LAYOUT
+----------------------------------------------------------------
 
-Quick reference:
   D:\ORCA AGENT\Orca-Agent-Unified\
-      +-- .git/                  <- Git history (from GitHub)
+      +-- .git/                  <- Git history (origin = GitHub)
       +-- .gitattributes         <- LF line endings for *.py
       +-- .env                   <- Tokens (created by setup.ps1)
       +-- README.md              <- Project overview
-      +-- BUILD_HISTORY.md       <- Full session log
+      +-- BUILD_HISTORY.md       <- Full session log (all phases)
+      +-- CANONICAL_LOCATION.txt <- This file
       +-- requirements.txt       <- Python deps
       +-- setup/                 <- Windows installer scripts
       +-- skills/                <- 25 bot skills
@@ -41,5 +47,56 @@ Quick reference:
       +-- .venv/                 <- Python venv (created by setup)
       +-- cache/                 <- Cache redirect (pip, HF, torch)
 
-If you find a copy anywhere else (C:, Desktop, Downloads, etc.),
-please delete it. The D: copy is the ONLY canonical instance.
+----------------------------------------------------------------
+HISTORY: Local-only phase (2026-08-03, ~30 minutes)
+----------------------------------------------------------------
+
+For a brief period, the project was D: only with NO remote. The
+user had requested:
+  1. Move the project from C:\Users\Yahia\.minimax\workspace\ to
+     D:\ORCA AGENT\ (the user-mandated canonical path).
+  2. All work happens ONLY in D:\ORCA AGENT.
+  3. Delete the GitHub repo to prevent confusion or duplicate work.
+
+What was done:
+  1. Cloned the GitHub repo to D:\ORCA AGENT\Orca-Agent-Unified
+  2. Verified byte-for-byte: 0 files missing, 0 content loss
+     (the only "mismatches" were LF vs CRLF line endings, fixed via
+     .gitattributes forcing LF for *.py)
+  3. Ran 475 tests from D:\ -- all pass
+  4. Deleted the GitHub repo via API
+  5. Removed the git remote from this clone
+  6. Installed a pre-push hook that explicitly refused to push
+  7. Deleted the C: workspace copy
+
+Why no remote (then): the user wanted D: to be the SINGLE source
+of truth. A local-only repo meant:
+  - `git push` would fail with "No configured push destination"
+  - The pre-push hook gave a clear explanation
+  - There was no way to accidentally lose work to a cloud
+
+The user then changed their mind (within ~30 minutes) and asked to
+restore GitHub as a mirror. Current state above reflects that.
+
+----------------------------------------------------------------
+OPERATIONS
+----------------------------------------------------------------
+
+To check the state:
+  cd D:\ORCA AGENT\Orca-Agent-Unified
+  git remote -v           -> origin https://github.com/hermasorca13-stack/Orca-Agent-Unified.git
+  git log --oneline -5    -> last 5 commits (local = remote)
+  python -m pytest tests/ --ignore=tests/test_telegram_bot.py -q
+                          -> 475 passed, 5 skipped
+
+To back up the project (e.g. before a big change):
+  Option A: copy D:\ORCA AGENT\Orca-Agent-Unified to an external drive
+  Option B: zip the folder and store it somewhere safe
+            (PowerShell: Compress-Archive -Path . -DestinationPath ..\orca-backup.zip)
+
+To re-attach a remote (if ever needed again):
+  cd D:\ORCA AGENT\Orca-Agent-Unified
+  git remote add origin https://github.com/hermasorca13-stack/Orca-Agent-Unified.git
+  git push -u origin main
+
+For the full build history, see BUILD_HISTORY.md.
