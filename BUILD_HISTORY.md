@@ -885,3 +885,61 @@ Both pushed and SHA-verified against the GitHub remote.
 5. **NTFS junctions are the cleanest cache redirect on
    Windows.** No symlink permissions issues, no admin
    required to read, transparent to all apps.
+
+
+---
+
+## 2026-08-03 — Canonical location: D:\ORCA AGENT (user mandate)
+
+The user explicitly required that the project live ONLY at
+D:\ORCA AGENT\Orca-Agent-Unified, with no duplicates
+anywhere. All future additions and updates will be made
+exclusively in this directory.
+
+### What changed
+
+- **.gitattributes** added: forces LF line endings for *.py
+  so the EFI-OS integrity check (which depends on exact
+  SHA-256) doesn't break across OSes. Without it, git on
+  Windows converted *.py to CRLF, changing the hash and
+  breaking the import.
+- **C: copy deleted**: the previous
+  C:\Users\Yahia\.minimax\workspace\Orca-Agent-Unified
+  was removed entirely. Only D: remains.
+- **CANONICAL_LOCATION.txt** added: documents the canonical
+  path, history, and quick-reference layout. If anyone
+  finds a copy elsewhere, they should delete it.
+- **README.md** now has a one-line canonical-path note.
+- **Remote URL fixed**: the D: clone inherited a stale
+  local-path remote from the deleted C: copy. Updated to
+  the actual GitHub URL.
+
+### How to verify (run from D:)
+
+    dir C:\Users\Yahia\.minimax\workspace\
+      -> only .workspace-marker (no Orca-Agent-Unified)
+
+    dir D:\ORCA AGENT\
+      -> Orca-Agent-Unified/  (the only copy)
+
+    cd D:\ORCA AGENT\Orca-Agent-Unified
+    python -m pytest tests/ --ignore=tests/test_telegram_bot.py -q
+      -> 475 passed, 5 skipped
+
+### Lessons learned
+
+1. **autocrlf=true is the wrong default for source code.**
+   It converts LF to CRLF on checkout, breaking any
+   integrity check that hashes file bytes. Always set
+   autocrlf=input (or use .gitattributes) for repos with
+   hash-sensitive files.
+2. **git clone from a local path inherits the source's
+   remote URL.** If the source is itself a clone, the
+   new clone gets a local-path remote, not the real GitHub
+   URL. Always git remote set-url after a local clone.
+3. **Windows file handles linger.** rmdir /s /q works on
+   busy files; shutil.rmtree with onerror is a good fallback.
+4. **EFIOSTamperedError was a feature, not a bug.** It
+   caught the line-ending mismatch the moment we tried to
+   use the EFI-OS tool from the D: copy. Without the
+   integrity check, the bug would have been silent.
