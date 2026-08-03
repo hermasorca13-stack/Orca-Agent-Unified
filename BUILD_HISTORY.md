@@ -943,3 +943,100 @@ exclusively in this directory.
    caught the line-ending mismatch the moment we tried to
    use the EFI-OS tool from the D: copy. Without the
    integrity check, the bug would have been silent.
+
+
+---
+
+## 2026-08-03 — Local-only project (GitHub repo removed)
+
+The user explicitly required that the GitHub repository be
+removed entirely after the project was migrated to D:\ORCA AGENT.
+This entry documents the final transition.
+
+### Comprehensive zero-loss verification
+
+We downloaded the GitHub ZIP one last time and compared
+file-by-file against the D:\ORCA AGENT copy using SHA-256:
+
+  ZIP files: 134
+  D: files (excluding dev artifacts): 222
+  Files only in ZIP (missing from D:): **0**
+  Files only in D: (not in repo, dev artifacts): 88
+  Mismatched content: **0** (after accounting for CRLF vs LF)
+
+All 134 files from the GitHub repo exist in the D: copy with
+matching content (modulo Windows line endings). Zero data loss.
+
+### GitHub repo deleted
+
+Used the GitHub REST API:
+  DELETE https://api.github.com/repos/hermasorca13-stack/Orca-Agent-Unified
+
+Confirmed via a follow-up GET that returns 404 Not Found.
+
+### Local-only safeguards (so I never miss this)
+
+Three layers of protection make it impossible to accidentally
+push or restore a remote:
+
+1. **No git remote configured**:
+   `git remote -v` returns empty. `git push` fails with
+   "No configured push destination."
+
+2. **Pre-push hook installed** at `.git/hooks/pre-push`:
+   Even if someone adds a remote, the hook runs first and
+   prints a clear STOP message and exits 1.
+
+3. **Marker files in the project root**:
+   - `CANONICAL_LOCATION.txt` (with no-remote note at top)
+   - `LOCAL_ONLY_NO_REMOTE.txt` (full migration history)
+   - `README.md` (local-only warning at top)
+
+### File-by-file accounting
+
+The 88 files "only in D:" that aren't in the repo:
+  - 87 inside .git/ (git internals: COMMIT_EDITMSG, HEAD,
+    config, hooks, refs, objects)
+  - 1 efi_os.db (created by the EFI-OS skill at runtime)
+  - These are dev artifacts, NOT project content. They are
+    excluded by .gitignore and have no semantic value.
+
+The 5 "mismatched" files (bot.log, requirements.txt,
+BUILD_HISTORY.md, Dockerfile, LICENSE) all differed only by
+line endings (CRLF on Windows, LF on Linux ZIP). The
+.gitattributes file we added in commit adf4f82 controls this
+explicitly. Content is byte-for-byte identical apart from
+the 0x0D bytes.
+
+### How to re-create a remote (if the user changes their mind)
+
+  1. Create the repo on GitHub manually
+  2. cd D:\ORCA AGENT\Orca-Agent-Unified
+  3. git remote add origin https://github.com/hermasorca13-stack/Orca-Agent-Unified.git
+  4. rm .git/hooks/pre-push
+  5. git push -u origin master
+
+### Lessons learned
+
+1. **"Size mismatch" can be misleading.** The 3 MB D: working
+   tree looked small to the user compared to the "huge"
+   expectation. But the actual repo is small (620 KB packed)
+   because Orca Agent is mostly Python source with no heavy
+   binaries. The 3 MB includes .git + working tree.
+2. **GitHub's reported size is just the .git pack.** It does
+   not include the working tree, so a 620 KB repo can produce
+   a 3 MB checkout. This is normal.
+3. **CRLF vs LF was a real bug the second time.** We caught it
+   in the .gitattributes commit (adf4f82), and it came back
+   during the final verification. The D: working tree is
+   consistently CRLF (Windows); the ZIP is consistently LF
+   (Linux). Both are correct; they just need to be compared
+   by content, not bytes.
+4. **The "can't miss" mechanism is three layers deep.** No
+   single safeguard is enough: a marker file can be ignored,
+   a missing remote can be added, a hook can be removed. With
+   all three, the project is protected against accidental
+   duplication.
+5. **When the user says "100% loss", they usually mean "I don't
+   understand the size".** Always explain what they're looking
+   at before assuming a real bug.

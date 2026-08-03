@@ -4,6 +4,8 @@ Real, working agent: **Telegram + GitHub + Android bridge + Universal API** in o
 
 > 📍 **Canonical location: `D:\ORCA AGENT\Orca-Agent-Unified\`** (per user request 2026-08-03).
 > Do not clone or copy to any other path. See `CANONICAL_LOCATION.txt` for details.
+>
+> ⚠️ **Local-only project**: no GitHub, no remote, no cloud copy. See `LOCAL_ONLY_NO_REMOTE.txt`.
 
 ## Structure
 ```

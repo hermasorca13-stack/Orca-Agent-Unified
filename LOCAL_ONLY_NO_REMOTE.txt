@@ -1,0 +1,79 @@
+================================================================
+   LOCAL-ONLY PROJECT — NO REMOTE BY DESIGN
+================================================================
+
+This Orca Agent project lives ONLY at:
+
+  D:\ORCA AGENT\Orca-Agent-Unified\
+
+There is NO GitHub repository, NO GitLab mirror, NO cloud copy.
+The only canonical instance is on this D: drive.
+
+WHAT HAPPENED (2026-08-03)
+---------------------------
+The user explicitly required that the project:
+  1. Be moved from C:\Users\Yahia\.minimax\workspace\ to
+     D:\ORCA AGENT\ (the user-mandated canonical path)
+  2. Have all work happen ONLY in D:\ORCA AGENT
+  3. Have the GitHub repo removed entirely to prevent
+     confusion or duplicate work
+
+We did:
+  1. Cloned the GitHub repo to D:\ORCA AGENT\Orca-Agent-Unified
+  2. Verified byte-for-byte: 0 files missing, 0 content loss
+     (the 5 "mismatches" were just LF vs CRLF line endings)
+  3. Ran 475 tests from D:\ -- all pass
+  4. Deleted the GitHub repo via API
+  5. Removed the git remote from this clone
+  6. Installed a pre-push hook that explicitly refuses to push
+  7. Deleted the C: workspace copy
+
+WHY NO REMOTE
+-------------
+The user wants D:\ORCA AGENT to be the SINGLE source of truth.
+If we kept a GitHub remote, the user might:
+  - Push changes that don't exist locally
+  - Clone from GitHub and overwrite the D: copy
+  - Get confused about which copy is "real"
+
+A local-only repo (no remote) means:
+  - `git push` fails with "No configured push destination"
+  - The pre-push hook gives a clear explanation
+  - There's no way to accidentally lose work to a cloud
+
+WHAT YOU SHOULD DO
+------------------
+Work ONLY in D:\ORCA AGENT\Orca-Agent-Unified.
+
+To check the state:
+  cd D:\ORCA AGENT\Orca-Agent-Unified
+  git remote -v           -> (empty, no remotes)
+  git log --oneline -5    -> last 5 local commits
+  python -m pytest tests/ --ignore=tests/test_telegram_bot.py -q
+                          -> 475 passed, 5 skipped
+
+To back up the project (e.g. before a big change):
+  Option A: copy D:\ORCA AGENT\Orca-Agent-Unified to an external drive
+  Option B: zip the folder and store it somewhere safe
+  Option C: tar -czf orca-agent-backup-YYYY-MM-DD.tar.gz Orca-Agent-Unified/
+
+To re-create a GitHub repo (if the user later wants one):
+  1. Create the repo on GitHub manually
+  2. cd D:\ORCA AGENT\Orca-Agent-Unified
+  3. git remote add origin https://github.com/hermasorca13-stack/Orca-Agent-Unified.git
+  4. git push -u origin master
+  (the pre-push hook will be skipped because we removed it above)
+  Actually: the pre-push hook will BLOCK the push. To unblock:
+    rm .git/hooks/pre-push
+  Then push.
+
+For the full migration history, see BUILD_HISTORY.md.
+
+LAST 5 COMMITS (local only, no remote)
+------------------------------------
+2dc313f docs: BUILD_HISTORY entry for D:\ORCA AGENT canonical move
+08b7cc7 docs: declare D:\ORCA AGENT as the canonical project location
+adf4f82 fix(.gitattributes): force LF for *.py to preserve SHA-256 integrity
+8770052 docs(BUILD_HISTORY): zero-loss audit report (pre-laptop-transfer)
+327dbd8 feat(setup): cache_setup.ps1 - redirect pip + model caches to D: drive
+--------------------------------------
