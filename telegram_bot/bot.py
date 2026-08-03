@@ -74,6 +74,8 @@ class OrcaBot:
         # --- Orca <-> Termux bidirectional bridge (2026-08-03) ---
         h(CommandHandler("termux", self.cmd_termux))
         h(CommandHandler("phone", self.cmd_termux))  # alias
+        h(CommandHandler("remind", self.cmd_remind))
+        h(CommandHandler("reminder", self.cmd_remind))  # alias
         # --- Adaptive natural-language intent (additive) ---
         h(CommandHandler("intent", self.cmd_intent))
         # --- EFI-OS external tool wrapper (additive) ---
@@ -150,6 +152,7 @@ class OrcaBot:
                 BotCommand("youtube", "Analyze YouTube video (transcript + summary + quotes)"),
                 # 2026-08-03 ADD: Orca <-> Termux bridge (HTTP-polled, bidirectional)
                 BotCommand("termux", "Phone bridge (battery/wifi/location/notify/run/...)"),
+                BotCommand("remind", "Set reminder (in 30m call mom / after 1h check oven)"),
                 # 2026-07-29 ADD: diag + setup wizard + cancel FSM
                 BotCommand("diag", "Diagnostics (self-heal report)"),
                 BotCommand("setup", "Set LLM API key (wizard)"),
@@ -1425,6 +1428,80 @@ class OrcaBot:
             while rest:
                 await u.message.reply_text(rest[:4000], parse_mode="Markdown")
                 rest = rest[4000:]
+
+    async def cmd_remind(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/remind <time phrase> [body]  OR  /remind list  OR  /remind cancel <id>
+
+        Set a reminder that will be sent to you at the given time.
+        Works in English and Arabic/Egyptian.
+
+        Examples:
+          /remind in 30 minutes call mom
+          /remind after 1 hour check the oven
+          /remind tomorrow at 9am meeting
+          /remind every monday at 9am standup
+          /remind بعد ساعة أسمي ماما
+          /remind بكرة الساعة 9 اجتماع
+          /remind كل جمعة 8 صلاة
+          /remind list
+          /remind cancel r-20260803-153012-abc123
+        """
+        from core.middleware import friendly_error
+        from skills import reminder_skill as rs
+        args = c.args or []
+        user_id = u.effective_user.id if u.effective_user else 0
+        skill = rs.get_skill()
+        if not args:
+            await u.message.reply_text(self._remind_help())
+            return
+        sub = args[0].lower() if args else ""
+        if sub == "list":
+            reminders = skill.list_user(user_id)
+            await u.message.reply_text(rs.format_list(reminders))
+            return
+        if sub == "cancel":
+            if len(args) < 2:
+                await u.message.reply_text("Usage: /remind cancel <id>")
+                return
+            rid = args[1]
+            if skill.cancel(user_id, rid):
+                await u.message.reply_text(f"✅ Cancelled {rid}")
+            else:
+                await u.message.reply_text(f"❌ Not found or already done: {rid}")
+            return
+        text = " ".join(args)
+        try:
+            r = skill.remind(user_id, text)
+            recur = " (weekly)" if r.recurring == "weekly" else ""
+            when = rs.fmt_due(r.due_at)
+            await u.message.reply_text(
+                f"⏰ Reminder set{recur}\n"
+                f"ID: {r.id}\n"
+                f"When: {when}\n"
+                f"Text: {r.text}"
+            )
+        except ValueError:
+            await u.message.reply_text(
+                "❌ Could not understand the time phrase.\n"
+                "Try: /remind in 30 minutes call mom\n"
+                "or:  /remind بعد ساعة أسمي ماما"
+            )
+        except Exception as e:
+            logger.exception("cmd_remind error")
+            await u.message.reply_text(friendly_error(e))
+
+    def _remind_help(self) -> str:
+        return (
+            "⏰ Reminder skill:\n"
+            "/remind <time phrase> [body]  - set reminder\n"
+            "/remind list                   - show pending\n"
+            "/remind cancel <id>           - cancel one\n"
+            "\n"
+            "English: in 5 minutes, after 1 hour, tomorrow at 9am, "
+            "every monday at 5pm\n"
+            "Arabic: بعد ساعة, بكرة 9, الساعة 5, كل جمعة 8, "
+            "يوم السبت 10"
+        )
 
     async def cmd_termux(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """/termux <subcommand> [args] — bidirectional bridge to a phone
