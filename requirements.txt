@@ -16,7 +16,7 @@ pycoingecko>=3.1.0
 yfinance>=0.2.40
 qrcode[pil]>=7.4
 pyshorteners>=1.0.0
-Pillow>=10.0.0
+Pillow>=12.3.0
 # 8 more library-backed skills (added 2026-07-29) — all stdlib where
 # possible; only the truly necessary deps are listed below.
 pdfplumber>=0.11.0  # used by skills/pdf_skill.py for table extraction
