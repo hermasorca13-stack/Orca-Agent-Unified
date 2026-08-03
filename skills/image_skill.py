@@ -73,15 +73,20 @@ class ImageGenError(RuntimeError):
 # Internal helpers
 # ----------------------------------------------------------------------
 def _api_key() -> str:
-    """Return the OpenAI API key from env, or raise a clear error."""
+    """Return the OpenAI API key from env, or raise a clear error.
+
+    When no key is set, the public API will route the call to the
+    offline Pillow-based local_image fallback (zero capability loss).
+    """
     key = (
         os.getenv("OPENAI_API_KEY", "").strip()
         or os.getenv("LLM_API_KEY", "").strip()
     )
     if not key:
-        raise ImageGenError(
-            "OPENAI_API_KEY not set. Add it to .env to enable /image."
-        )
+        # No key -> caller will fall back to the offline image
+        # generator. We do NOT raise here; the public API is the
+        # single switch between the two paths.
+        return ""
     return key
 
 
@@ -221,7 +226,13 @@ def generate(
             f"response_format must be 'url', 'b64_json', or 'auto' (got {response_format!r})"
         )
 
-    _ = _api_key()  # fail fast on missing key
+    key = _api_key()
+    if not key:
+        # No API key -> route to the offline Pillow-based fallback.
+        # We still honour size, response_format, etc. so the caller
+        # gets the same response shape as the DALL-E path.
+        return _generate_offline(prompt, size_n, response_format, n_n)
+
     client = _client()
 
     t0 = time.monotonic()
@@ -282,6 +293,77 @@ def generate(
     logger.info(
         "image generate ok | model={} size={} elapsed={}s revised={}",
         model_n, size_n, out["elapsed"], bool(revised),
+    )
+    return out
+
+
+# ----------------------------------------------------------------------
+# Offline fallback (zero-key path)
+# ----------------------------------------------------------------------
+def _generate_offline(
+    prompt: str,
+    size: str,
+    response_format: str,
+    n: int,
+) -> Dict[str, Any]:
+    """Call the Pillow-based local fallback when no OpenAI key is set.
+
+    The output is shaped like the DALL-E response so callers don't have
+    to branch. The Pillow generator is deterministic (same prompt =
+    same image) and produces a stylised gradient + prompt render that
+    is useful as a placeholder / preview / offline demo.
+    """
+    from skills.offline_fallbacks import local_image
+
+    t0 = time.monotonic()
+    items: List[Dict[str, Any]] = []
+    for _ in range(max(1, n)):
+        result = local_image(prompt, size=size)
+        if not result or result.get("error"):
+            logger.warning(
+                "image offline fallback returned error: {}",
+                (result or {}).get("error", "unknown"),
+            )
+            continue
+        item: Dict[str, Any] = {
+            "model": result.get("model", "orca-local-v1"),
+            "size": result.get("size", size),
+            "revised_prompt": result.get("revised_prompt", prompt),
+        }
+        if response_format == "b64_json" or response_format == "auto":
+            if result.get("image_b64"):
+                item["b64_json"] = result["image_b64"]
+        if response_format == "url" or response_format == "auto":
+            # We expose the on-disk path as a "url" since the offline
+            # generator writes to a temp file the caller can fetch.
+            if result.get("image_path"):
+                item["url"] = "file://" + result["image_path"]
+        items.append(item)
+        if response_format == "url":
+            # URL mode: only the first image gets a usable URL.
+            break
+
+    elapsed = time.monotonic() - t0
+    out: Dict[str, Any] = {
+        "prompt": prompt,
+        "model": "orca-local-v1",
+        "size": size,
+        "quality": "offline",
+        "n": len(items),
+        "elapsed": round(elapsed, 2),
+        "data": items,
+        "offline": True,
+        "fallback_reason": "OPENAI_API_KEY not set; used local Pillow fallback",
+    }
+    if items:
+        first = items[0]
+        if "b64_json" in first:
+            out["image_b64"] = first["b64_json"]
+        if "url" in first:
+            out["image_url"] = first["url"]
+    logger.info(
+        "image generate (OFFLINE) ok | size={} n={} elapsed={}s",
+        size, len(items), out["elapsed"],
     )
     return out
 

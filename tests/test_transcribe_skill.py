@@ -68,12 +68,15 @@ class TestResolution:
         finally:
             os.unlink(p)
 
-    def test_oversize_bytes_raises(self):
-        # No key set on purpose — we expect the key check to fire first
-        # (saves a 25MB alloc). The skill is designed to fail fast.
+    def test_oversize_bytes_falls_back_offline(self):
+        # 2026-08-03: when no key is set, the skill now uses the
+        # offline audio-metadata fallback rather than raising.
+        # The fallback reports ok=False with a clear note.
         big = b"\x00" * (MAX_BYTES + 1)
-        with pytest.raises(TranscribeError, match="OPENAI_API_KEY"):
-            transcribe(big)
+        result = transcribe(big)
+        assert result.get("ok") is False
+        assert result.get("fallback") is True
+        assert "OPENAI_API_KEY" in result.get("fallback_reason", "")
 
     def test_oversize_path_raises(self, monkeypatch, tmp_path):
         monkeypatch.setenv("OPENAI_API_KEY", "sk-dummy-for-tests")
@@ -85,11 +88,17 @@ class TestResolution:
 
 
 class TestApiKey:
-    def test_missing_key_message(self, monkeypatch):
+    def test_missing_key_falls_back_offline(self, monkeypatch):
+        # 2026-08-03: when no key is set, the skill now uses the
+        # offline audio-metadata fallback rather than raising.
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("LLM_API_KEY", raising=False)
-        with pytest.raises(TranscribeError, match="OPENAI_API_KEY not set"):
-            transcribe("https://example.com/clip.ogg")
+        result = transcribe("https://example.com/clip.ogg")
+        # The fallback returns ok=False with a clear note about
+        # why transcription is unavailable.
+        assert result.get("ok") is False
+        assert result.get("fallback") is True
+        assert "OPENAI_API_KEY" in result.get("fallback_reason", "")
 
 
 class TestFormatCard:

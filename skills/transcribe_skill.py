@@ -71,19 +71,19 @@ class TranscribeError(RuntimeError):
 # Internal helpers
 # ----------------------------------------------------------------------
 def _api_key() -> str:
-    """Return the OpenAI API key from env, or raise a clear error.
+    """Return the OpenAI API key from env, or empty string.
 
     We prefer `OPENAI_API_KEY` because Whisper is OpenAI-specific.
     Falls back to `LLM_API_KEY` so existing single-key setups work.
+
+    When no key is set, returns "" so the public API can branch
+    into the offline fallback. We do NOT raise here; the public
+    API is the single switch between the two paths.
     """
     key = (
         os.getenv("OPENAI_API_KEY", "").strip()
         or os.getenv("LLM_API_KEY", "").strip()
     )
-    if not key:
-        raise TranscribeError(
-            "OPENAI_API_KEY not set. Add it to .env to enable /transcribe."
-        )
     return key
 
 
@@ -281,10 +281,14 @@ def transcribe(
     if prompt:
         prompt = prompt.strip()[:1024] or None
 
-    # Fail fast on missing credentials. We do this BEFORE any disk or
-    # network work so users see the real problem (no key) instead of
-    # a confusing downstream error (e.g. 404 from a URL).
-    _ = _api_key()
+    # When no API key is configured, route to the offline fallback
+    # (audio metadata + clear note). We do NOT crash.
+    if not _api_key():
+        from skills.offline_fallbacks import local_transcribe_placeholder
+        logger.info(
+            "transcribe OFFLINE | no key; running audio metadata fallback"
+        )
+        return local_transcribe_placeholder(source)
 
     kind = _kind_of(source)
     logger.info(

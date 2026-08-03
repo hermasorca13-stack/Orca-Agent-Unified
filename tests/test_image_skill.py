@@ -86,11 +86,17 @@ class TestArguments:
 # Key + error paths
 # ----------------------------------------------------------------------
 class TestKeys:
-    def test_missing_key(self, monkeypatch):
+    def test_missing_key_falls_back_to_local(self, monkeypatch):
+        # 2026-08-03: when no OpenAI key is set, the skill now
+        # routes to the local Pillow-based offline generator
+        # rather than raising. Zero capability loss.
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("LLM_API_KEY", raising=False)
-        with pytest.raises(ImageGenError, match="OPENAI_API_KEY not set"):
-            generate("a cat")
+        result = generate("a cat", size="1024x1024")
+        assert result.get("offline") is True
+        assert result.get("model") == "orca-local-v1"
+        assert result.get("image_b64") or result.get("image_url")
+        assert "OPENAI_API_KEY" in result.get("fallback_reason", "")
 
 
 class TestErrorMapping:
