@@ -10,7 +10,7 @@ fastapi>=0.110.0
 uvicorn>=0.27.0
 scipy>=1.11.0
 numpy>=1.24.0
-pandas>=2.0.0
+pandas>=3.0.5
 # 5 library-backed skills (added 2026-07-29)
 pycoingecko>=3.1.0
 yfinance>=0.2.40
