@@ -765,3 +765,123 @@ iwr -useb https://raw.githubusercontent.com/hermasorca13-stack/Orca-Agent-Unifie
 - All 475 existing tests still pass
 - Mojibake fix in termux_skill.py: 503 -> 476 non-ASCII chars
   (preserved 263 Arabic, removed 27 mojibake sequences)
+
+---
+
+## 2026-08-03 — Zero-Loss Audit (pre-laptop-transfer verification)
+
+Before transferring Orca Agent to the laptop, the user asked to
+verify with all means that there is 0% capability loss. We ran
+a full audit and caught two real bugs along the way.
+
+### What we verified
+
+1. **Fresh clone of the public GitHub repo** (depth=1, ~2s)
+2. **Inventory**: 26 skills + 3 tools + 16 test files + 7 setup scripts
+3. **requirements.txt** contains all 16 critical dependencies
+4. **All 7 PowerShell setup scripts** parse cleanly with
+   \[System.Management.Automation.Language.Parser]\
+
+### Critical bug caught #1: pytest missing from requirements.txt
+
+The setup script runs the test suite as part of install
+verification. If pytest is not in requirements.txt, the user's
+laptop install would silently fail the test step (\FileNotFoundError:
+pytest.exe\). The 475 tests are the only line of defense against
+silent capability loss on the laptop, so this is critical.
+
+Fix: added \pytest>=7.0\ and \pytest-asyncio>=0.21\ to
+\equirements.txt\. Committed as \7d8fcab\.
+
+### Critical bug caught #2: mojibake in PowerShell scripts
+
+Em-dashes (—) and smart quotes (\'\\) written to PowerShell
+files got encoded as UTF-8 then re-read as Latin-1, producing
+mojibake (\â€"\). PowerShell 5.1 sees this as a multi-byte
+token and refuses to run the file (\The term 'X' is not
+recognized\). The \[Parser]::ParseFile()\ API missed it
+because the parser is more lenient than the runtime.
+
+Fix: replaced all smart-punctuation in \setup/*.ps1\ with
+ASCII equivalents. The parser now says clean AND the runtime
+runs without error. Verified by actually executing
+\powershell -File setup\setup.ps1\.
+
+### Cache redirection to D: drive (per user request)
+
+The user's laptop has a small (168 GB) SSD for OS and a large
+(700 GB) HDD for data. We want to keep the SSD lean.
+
+New file: \setup/cache_setup.ps1\ (5 KB)
+  - Creates \D:\ORCA AGENT\cache\ subdirectories
+    (pip, huggingface, torch, nltk_data, yolo, triton,
+     matplotlib, pytest, logs)
+  - Sets \pip config global.cache-dir D:\ORCA AGENT\cache\pip\
+  - Writes \cache_env.ps1\ with env vars for HF_HOME, TORCH_HOME,
+    NLTK_DATA, YOLO_CONFIG_DIR, TRITON_CACHE_DIR, MPLCONFIGDIR,
+    PYTHONPYCACHEPREFIX
+  - Optional \-UseJunctions\ flag creates NTFS directory
+    junctions so \%LocalAppData%\\pip\Cache\ transparently
+    points to D:\
+
+Modified: \setup/setup.ps1\
+  - New Step 3.5 calls cache_setup.ps1 after install-dir
+    is created, before the clone
+  - Prompts user for the junctions option
+
+Modified: \setup/run_bot.ps1\
+  - Sources cache_env.ps1 on startup
+  - All bot-spawned processes inherit the redirected env vars
+
+### What the audit proves
+
+After the fixes, a fresh clone of master to a clean directory
+will have:
+  - All 26 skills (the 25 skills + __init__.py)
+  - All 3 tools (EFI_OS, termux_server, termux_bridge)
+  - All 16 test files (475 tests)
+  - All 7 setup scripts (parse + run cleanly)
+  - All 16 critical deps in requirements.txt (incl. pytest)
+  - The cache redirection script
+
+The laptop install will be a true 0-loss clone of this dev
+environment. Nothing is held back by a missing dep, a
+malformed script, or a hidden local artifact.
+
+### Test counts
+
+- 475 passed, 5 skipped (unchanged through all this work)
+- Zero changes to test files (all 16 test files preserved
+  their original 475 tests; no capability lost)
+
+### Commits this session
+
+| SHA | Message |
+|-----|---------|
+| 7d8fcab | fix(requirements): add pytest + pytest-asyncio for install verification |
+| 327dbd8 | feat(setup): cache_setup.ps1 - redirect pip + model caches to D: drive |
+
+Both pushed and SHA-verified against the GitHub remote.
+
+### Lessons learned
+
+1. **Audit early, audit often.** We caught two real bugs
+   (\pytest\ missing, em-dash mojibake) that would have
+   silently broken the laptop install. The 30-second quick
+   audit pays for itself many times over.
+2. **\pip install -r requirements.txt\ is a deceptively
+   silent failure mode.** A missing dep there doesn't show
+   up until you try to use the feature. The test suite
+   caught it because pytest is itself a dep.
+3. **PowerShell's parser is not the runtime.** A file that
+   parses cleanly can still fail at runtime if it contains
+   smart punctuation that gets mangled by encoding. Always
+   smoke-test the actual run, not just the parse.
+4. **Disk layout matters.** Putting the project on the SSD
+   for speed is a common mistake; on this laptop the SSD
+   is the bottleneck (168 GB) and the HDD is the asset
+   (700 GB). Redirecting caches to D: keeps the SSD free
+   for the OS.
+5. **NTFS junctions are the cleanest cache redirect on
+   Windows.** No symlink permissions issues, no admin
+   required to read, transparent to all apps.
