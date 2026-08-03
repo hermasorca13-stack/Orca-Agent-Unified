@@ -2,6 +2,9 @@
 
 Real, working agent: **Telegram + GitHub + Android bridge + Universal API** in one clean Python package. No duplicates, no Node.js leftovers, single source of truth.
 
+> 📍 **Canonical location: `D:\ORCA AGENT\Orca-Agent-Unified\`** (per user request 2026-08-03).
+> Do not clone or copy to any other path. See `CANONICAL_LOCATION.txt` for details.
+
 ## Structure
 ```
 orca-agent/

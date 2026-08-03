@@ -1,0 +1,40 @@
+CANONICAL LOCATION OF ORCA AGENT
+=================================
+
+This file is the source of truth for where Orca Agent lives on disk.
+
+  CANONICAL PATH:   D:\ORCA AGENT\Orca-Agent-Unified\
+  ALTERNATE:        /d/ORCA AGENT/Orca-Agent-Unified/   (WSL/Git Bash)
+  CLOUD:            https://github.com/hermasorca13-stack/Orca-Agent-Unified
+
+DO NOT clone or copy this project to any other path. The setup script
+in setup/setup.ps1 targets D:\ORCA AGENT specifically.
+
+History (per user request on 2026-08-03):
+  - The user explicitly required the project to live at D:\ORCA AGENT
+  - All C: copies were removed (no duplicates anywhere)
+  - All future work happens ONLY in D:\ORCA AGENT\Orca-Agent-Unified
+  - All future updates pushed to GitHub from D: only
+
+Quick reference:
+  D:\ORCA AGENT\Orca-Agent-Unified\
+      +-- .git/                  <- Git history (from GitHub)
+      +-- .gitattributes         <- LF line endings for *.py
+      +-- .env                   <- Tokens (created by setup.ps1)
+      +-- README.md              <- Project overview
+      +-- BUILD_HISTORY.md       <- Full session log
+      +-- requirements.txt       <- Python deps
+      +-- setup/                 <- Windows installer scripts
+      +-- skills/                <- 25 bot skills
+      +-- tools/                 <- 3 tools (incl. Termux bridge)
+      +-- tests/                 <- 16 test files (475 tests)
+      +-- telegram_bot/          <- Main entry point (bot.py)
+      +-- core/                  <- Middleware + config
+      +-- docs/                  <- Architecture docs
+      +-- logs/                  <- Runtime logs
+      +-- data/                  <- SQLite + queues
+      +-- .venv/                 <- Python venv (created by setup)
+      +-- cache/                 <- Cache redirect (pip, HF, torch)
+
+If you find a copy anywhere else (C:, Desktop, Downloads, etc.),
+please delete it. The D: copy is the ONLY canonical instance.
