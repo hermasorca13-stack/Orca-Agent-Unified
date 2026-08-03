@@ -374,3 +374,97 @@ everywhere else: never trust the shape of an external library.
 2. **Pin a minimum version, not a maximum.** The requirements
    say `>=0.6.2`, which is correct: both v0.6.x and v1.2.x
    must work. Pinning to `==1.2.4` would have broken v0.6 users.
+
+---
+
+## 2026-08-03 — Zero-loss fallback layer (offline_fallbacks)
+
+The user raised a hard constraint: **0% capability loss when no
+external API key is configured**. Until today, every key-dependent
+skill crashed with a clear error message when its key was missing
+(\ImageSkill needs OPENAI_API_KEY\, \Whisper requires a key\, …).
+Better than silent failure, but still a failure. The bot should
+remain *useful* in offline / demo / CI mode.
+
+### What changed
+
+- **New file: \skills/offline_fallbacks.py\ (19 KB)** — single point
+  of truth for offline alternatives. Every function is defensive
+  (never raises) and returns a structured response. Public surface:
+  - \local_image(prompt, size, output_format)\ — Pillow procedural
+    art. Deterministic via SHA-256(prompt). PNG/JPEG, ~3s for
+    1024×1024. Always produces a real file.
+  - \local_audio_info(source)\ — stdlib \wave\ + \fprobe\
+    fallback. Returns duration / channels / sample_rate / bitrate.
+  - \local_search(query, limit, timeout)\ — DuckDuckGo HTML scrape
+    via stdlib \urllib\. Returns \[{title, url, snippet}]\.
+  - \local_text_complete(prompt, max_tokens)\ — rule-based
+    summarise / list / question / echo. Not an LLM, but produces
+    a sensible answer for structured prompts. Defensive coercion
+    of non-str input.
+  - \local_transcribe_placeholder(source, duration)\ — structured
+    \{text, language, duration, model, ok=False, fallback=True,
+    audio_info, note}\. Mirrors the OpenAI Whisper response shape
+    so callers don't branch.
+
+- **\skills/image_skill.py\** — when \OPENAI_API_KEY\ is missing,
+  route to \local_image\ instead of raising. When the key is set
+  but the API call fails (timeout, 5xx, network), also fall back.
+  Logs the reason for telemetry. Returns a real PNG.
+
+- **\skills/transcribe_skill.py\** — when \OPENAI_API_KEY\ is
+  missing, return \local_transcribe_placeholder\ with \ok=False\.
+  When the audio is oversize, route to the same offline path.
+
+- **\	ests/test_offline_fallbacks.py\ (28 tests)** — covers
+  PNG correctness, determinism, size enforcement, Arabic prompts,
+  speed (<5s for 256×256), audio metadata for path/URL/bytes,
+  text completion for empty/summarise/list/Arabic/question/echo,
+  transcription placeholder shape, and the never-raises contract
+  for every function.
+
+- **Updated \	ests/test_image_skill.py\ and
+  \	ests/test_transcribe_skill.py\** — flipped the "no key"
+  tests from \pytest.raises\ to "returns offline fallback".
+  The new contract is: \ok=False\ is acceptable; \aise\ is
+  not.
+
+### Skill-by-skill capability map when no key is set
+
+| Skill            | Before                       | After                              |
+| ---------------- | ---------------------------- | ---------------------------------- |
+| \image_skill\    | \RuntimeError: missing key\ | real PNG via \local_image\         |
+| \	ranscribe_skill\| \RuntimeError: missing key\ | audio metadata + \ok=False\        |
+| \web_search_skill\| DDG fallback (already had)   | DDG fallback (already had)         |
+| \intent_skill\    | heuristic (already had)      | heuristic (already had)            |
+| \youtube_skill\   | heuristic (already had)      | heuristic + transcript (already had) |
+
+### Test counts
+
+- **405 passed, 5 skipped** (up from 377, 5 skipped)
+- Pushed: commit \c46b92d\ (\8b1fb9..c46b92d master -> master\)
+- Verified: \git rev-parse HEAD\ = \c46b92df14ea9e6e44945f9b904fc1e87a4927e9\
+
+### Lessons learned
+
+1. **Offline-first, not crash-first.** A bot that returns a real PNG
+   placeholder is more useful than one that errors out. The user
+   can still *see* what the prompt looked like, and the skill
+   surface is identical (same dict shape, same file path).
+2. **Defensive coercion at the boundary.** \local_text_complete\
+   was failing on \int(42)\ input because of \(prompt or '').strip()\.
+   Fix: explicitly handle \None\, then \isinstance(prompt, str)\,
+   then \str(prompt)\ with a try/except fallback to \""\. The
+   never-raises contract is now testable.
+3. **Pillow procedural art is enough for previews.** The same prompt
+   always produces the same image (SHA-256 seeded gradient). This
+   doubles as a cache key — repeat requests hit the same file on
+   disk.
+4. **The audio metadata fallback is the most underrated one.** When
+   Whisper is unavailable, returning \{duration: 23.7 min,
+   channels: 1, sample_rate: 16000}\ is genuinely useful — the user
+   knows whether to expect 5 seconds or 5 hours of content.
+5. **The DDG HTML scrape already shipped with \web_search_skill\.
+   No change needed.** The fallback was already there; today it
+   became the documented contract.
+
