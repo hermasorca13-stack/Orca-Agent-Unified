@@ -1,16 +1,16 @@
 CANONICAL LOCATION OF ORCA AGENT
 =================================
 
-> !! LOCAL-ONLY PROJECT — NO REMOTE BY DESIGN !!
-> See LOCAL_ONLY_NO_REMOTE.txt for the full migration history.
+> Restored 2026-08-03: GitHub repo re-activated as a mirror.
+> See HISTORY_NO_REMOTE_PHASE.md for the local-only phase history.
 
 This file is the source of truth for where Orca Agent lives on disk.
 
   CANONICAL PATH:   D:\ORCA AGENT\Orca-Agent-Unified\
   ALTERNATE:        /d/ORCA AGENT/Orca-Agent-Unified/   (WSL/Git Bash)
-  CLOUD:            (none — repo deleted from GitHub on 2026-08-03)
-  GIT REMOTE:       (none — `git remote -v` returns empty)
-  PRE-PUSH HOOK:    .git/hooks/pre-push (refuses any push attempt)
+  CLOUD MIRROR:     https://github.com/hermasorca13-stack/Orca-Agent-Unified
+  GIT REMOTE:       origin (HTTPS, restored 2026-08-03)
+  DEFAULT BRANCH:   main
 
 DO NOT clone or copy this project to any other path. The setup script
 in setup/setup.ps1 targets D:\ORCA AGENT specifically.
