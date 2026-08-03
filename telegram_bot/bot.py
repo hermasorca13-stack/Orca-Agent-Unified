@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from typing import Optional, List
 from loguru import logger
 from core.config import config
 from api_manager.api_manager import api
@@ -67,6 +68,8 @@ class OrcaBot:
         h(CommandHandler("search", self.cmd_search))
         h(CommandHandler("web", self.cmd_search))  # alias
         h(CommandHandler("image", self.cmd_image))
+        h(CommandHandler("youtube", self.cmd_youtube))
+        h(CommandHandler("yt", self.cmd_youtube))  # alias
         h(CommandHandler("img", self.cmd_image))  # alias
         # --- Adaptive natural-language intent (additive) ---
         h(CommandHandler("intent", self.cmd_intent))
@@ -140,6 +143,8 @@ class OrcaBot:
                 BotCommand("v2e", "Voice → English (transcribe + translate pipeline)"),
                 BotCommand("research", "Multi-source research card (web+wiki+news)"),
                 BotCommand("health", "DB / FS / Network probe"),
+                # 2026-08-03 ADD: YouTube video analysis (transcript + oEmbed + LLM)
+                BotCommand("youtube", "Analyze YouTube video (transcript + summary + quotes)"),
                 # 2026-07-29 ADD: diag + setup wizard + cancel FSM
                 BotCommand("diag", "Diagnostics (self-heal report)"),
                 BotCommand("setup", "Set LLM API key (wizard)"),
@@ -236,6 +241,7 @@ class OrcaBot:
         "translation_skill":  "text translation (Google web, 100+ langs)",
         "efi_os_skill":       "EFI-OS wrapper — local evidence + RAG + analysis (no API keys)",
         "intent_skill":       "Adaptive natural-language intent classifier (Arabic+English)",
+        "youtube_skill":      "YouTube video analysis (transcript + oEmbed + LLM, 125+ langs)",
     }
 
     async def cmd_skills(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
@@ -1336,6 +1342,80 @@ class OrcaBot:
         import os as _os
         ext = _os.path.splitext(u.message.audio.file_name or "")[1] or ".mp3"
         await self._transcribe_telegram_file(u, u.message.audio, ext=ext)
+
+    async def cmd_youtube(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        """/youtube <url> [lang1,lang2,...] — analyse a YouTube video.
+
+        Pipeline:
+            1. oEmbed -> title, author, thumbnail
+            2. youtube-transcript-api -> full transcript (125+ langs)
+            3. LLM (when OPENAI_API_KEY is set) -> summary + quotes + topics
+               (heuristic fallback when no key)
+        Renders the result as a Telegram-friendly Markdown card.
+        """
+        from core.middleware import friendly_error
+        if not u.message or not u.message.text:
+            await u.message.reply_text(
+                "🎬 Usage: `/youtube <youtube_url> [lang,...]`\n"
+                "Example: `/youtube https://youtu.be/dQw4w9WgXcQ en,ar`"
+            )
+            return
+
+        # Strip command prefix.
+        text = u.message.text.strip()
+        for prefix in ("/youtube", "/yt"):
+            if text.startswith(prefix):
+                text = text[len(prefix):].strip()
+                break
+
+        if not text:
+            await u.message.reply_text(
+                "🎬 Please pass a YouTube URL.\n"
+                "Example: `/youtube https://youtu.be/dQw4w9WgXcQ`"
+            )
+            return
+
+        # Parse URL and optional language list.
+        parts = text.split(maxsplit=1)
+        url = parts[0]
+        languages: Optional[List[str]] = None
+        if len(parts) == 2 and parts[1].strip():
+            languages = [s.strip() for s in parts[1].split(",") if s.strip()]
+
+        # Acknowledge up front; the network call may take 5-15s.
+        wait_msg = await u.message.reply_text(
+            f"🎬 Analysing `{url}`…\n"
+            f"   pipeline: oEmbed → transcript → {'LLM' if True else 'heuristic'}"
+        )
+
+        try:
+            from skills.youtube_skill import analyze, format_card, YouTubeError
+            analysis = analyze(url, languages=languages, with_llm=True)
+        except YouTubeError as exc:
+            await wait_msg.edit_text(f"❌ {friendly_error(exc)}")
+            return
+        except Exception as exc:  # noqa: BLE001
+            await wait_msg.edit_text(
+                f"❌ YouTube analysis failed: {friendly_error(exc)}"
+            )
+            return
+
+        try:
+            card = format_card(analysis)
+        except Exception as exc:  # noqa: BLE001
+            card = f"❌ Could not render card: {friendly_error(exc)}"
+
+        # Telegram message length limit is 4096 chars. If the card is
+        # longer, split it into a follow-up message.
+        if len(card) <= 4000:
+            await wait_msg.edit_text(card, parse_mode="Markdown")
+        else:
+            await wait_msg.edit_text(card[:4000], parse_mode="Markdown")
+            # Follow-up with the rest.
+            rest = card[4000:]
+            while rest:
+                await u.message.reply_text(rest[:4000], parse_mode="Markdown")
+                rest = rest[4000:]
 
     async def _read_docx_from_telegram(self, u: Update, tg_doc) -> str:
         """Download a Telegram .docx document and extract its text.

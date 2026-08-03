@@ -39,3 +39,11 @@ pytesseract>=0.3.10  # used by skills/pdf_skill.py for OCR; needs tesseract bina
 # 2026-07-29 ADD: extra LLM providers + Google SDK for failover router
 google-generativeai>=0.3.0  # Gemini (used by core/llm_providers.py)
 # groq, mistral, ollama all use the openai SDK (already pinned above).
+# 2026-08-03 ADD: YouTube video analysis (transcript + metadata).
+# youtube-transcript-api is the 2026 community standard: free, no API key,
+# no OAuth, 125+ language codes, supports both manual + auto-generated captions.
+# Used by skills/youtube_skill.py
+youtube-transcript-api>=0.6.2
+# yt-dlp is the universal video/audio downloader; we use it as a fallback
+# when captions are disabled (download audio -> transcribe via Whisper).
+# Lazy-imported; not pinned to keep base install lean.

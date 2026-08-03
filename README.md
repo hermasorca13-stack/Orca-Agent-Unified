@@ -100,6 +100,14 @@ python orca.py doctor    # engineering checks
     - `/image <prompt> -s 1024x1792 -q hd` — portrait, HD quality
     - `/image <prompt> -m dall-e-2` — cheaper, legacy model
   - Requires `OPENAI_API_KEY` in `.env` (already used by `/transcribe`). Cost: ~$0.04 (DALL-E 3 standard 1024²), ~$0.08 (HD), ~$0.12 (1792²).
+- **YouTube video analysis (added 2026-08-03)**: `/youtube` understands any YouTube URL shape (`watch?v=`, `youtu.be/`, `shorts/`, `embed/`, `live/`, `m.youtube.com`, `music.youtube.com`, or even a bare 11-char ID) and returns metadata (title, author, thumbnail) + full transcript in 125+ languages + summary + key quotes + topics + entities + data points. Pipeline:
+    1. **oEmbed** for headline metadata (no API key)
+    2. **`youtube-transcript-api`** for the full transcript, with a graceful fallback chain: manual captions → auto-generated captions → auto-translate via YouTube's built-in caption-translation service
+    3. **LLM** (when `OPENAI_API_KEY` is set) for structured analysis using the high-density prompt template from `core/skills_data/youtube_research.md`; otherwise a heuristic extractive summary
+    - `/youtube <url>` — full analysis card
+    - `/youtube <url> en,ar` — prefer English then Arabic caption track
+    - `/yt <url>` — alias
+  - Cost: $0 with no LLM key; ~$0.01 per video with `OPENAI_API_KEY` (gpt-4o-mini analysis). Requires `youtube-transcript-api` (already in `requirements.txt`).
 - **PDF (extended 2026-08-02)**: `/pdf` now writes too (text → PDF, markdown → PDF) and can OCR scanned pages.
     - `/pdf info <path>` — metadata (unchanged)
     - `/pdf text <path> [page]` — extract text (unchanged)

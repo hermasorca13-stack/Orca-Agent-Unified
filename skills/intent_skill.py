@@ -357,6 +357,20 @@ _RULES: List[Tuple[str, float, List[str], Any]] = [
         r"\b(?:شغلّ?[لي]*|شغلّ?)\b",
         r"محرك\s*(?:الذكاء|ذكاء\s*اصطناعي)?",
     ], _args_after_verb),
+    # YouTube video analysis
+    ("youtube", 0.80, [
+        # English / URLs
+        r"(?:youtube\.com|youtu\.be|youtube\.com/shorts|youtube\.com/embed|youtube\.com/live|m\.youtube\.com|music\.youtube\.com)",
+        r"\b(youtube|yt|youtube\.com|youtube-video|youtube\s*video|video\s*url)\b",
+        # Common verbs that imply "analyse a video"
+        r"\b(?:analy[sz]e|summari[sz]e|transcribe|review|breakdown|explain)\s+(?:this|that|the)?\s*(?:youtube|video|yt)\b",
+        r"\b(?:youtube|yt|video)\s+(?:analy[sz]e|summari[sz]e|transcript|review|breakdown|explanation|summary)\b",
+        # Egyptian dialect — require a YouTube-context token after the verb
+        r"ممكن\s*(?:تحل[ليي]*|تشرحل[ليي]*|تعملي\s*ملخص|تعملي\s*تحليل|تعملي\s*summary)\s+(?:الفيديو|الفديو|اليوتيوب|youtube|yt)\s*(?:ده|دي|هذا)?",
+        r"عايز\s*(?:اعرف|أعرف|ملخص|تحليل)\s*(?:الفيديو|الفديو|اليوتيوب|youtube|yt)\s*(?:ده|دي|هذا)?",
+        r"ايه\s*(?:اللي|الموضوع|الحكاية)\s*(?:في\s*)?(?:الفيديو|الفديو|اليوتيوب|youtube|yt)\s*(?:ده|دي|هذا)?",
+        r"ممكن\s*(?:تعملي\s*)?(?:ترجمة|تفريغ)\s+(?:الفيديو|الفديو|اليوتيوب|youtube|yt)",
+    ], _args_url),
     # System
     ("status", 0.85, [
         r"\b(status|حالة|حاله|اخبارك|اخبار\s*النظام|ازيك|صحة|صحي)\b",

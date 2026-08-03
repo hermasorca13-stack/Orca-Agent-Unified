@@ -256,3 +256,71 @@ Egyptian variants each.
 4. **A 30-skill agent bridge can fail at collection time even when
    intent_skill itself is fine.** Always isolate new skill tests
    so they don't pull in telegram_adapter / service code.
+
+## 2026-08-03 — YouTube video analysis skill (youtube_skill)
+
+The Orca roadmap listed `youtube_transcript` as a low-priority skill
+and `YouTube Video Research` as an enhanced capability. Today we
+turned both into a production-grade Python skill.
+
+### What changed
+
+- `skills/youtube_skill.py` (40 KB, 1000+ lines) — full 2026 stack:
+  - **Zero-API-key URL parser** that handles every YouTube URL shape
+    (watch, youtu.be, shorts, embed, live, m.youtube.com,
+    music.youtube.com, bare 11-char IDs) and refuses non-YouTube URLs
+  - **oEmbed** for headline metadata (no API key, no OAuth)
+  - **`youtube-transcript-api`** (v0.6.2+, 10M+ downloads, MIT, 125+
+    language codes) with a graceful fallback chain:
+    manual captions -> auto-generated -> auto-translate
+  - **Multilingual** by design: every supported language is
+    selectable by ISO code
+  - **Heuristic summary** (no LLM needed) — multilingual-safe
+    position+length scoring
+  - **LLM analysis** with the high-density prompt template from
+    `core/skills_data/youtube_research.md` (8+ direct quotes,
+    data points, arguments, counter-arguments, sentiment)
+  - **Defensive error hierarchy**: `YouTubeError` +
+    `InvalidURLError` / `MetadataError` / `TranscriptError` /
+    `AnalysisError`
+- `tests/test_youtube_skill.py` — 67 unit + integration tests
+  covering URL parser, result types, formatters, heuristic, LLM
+  (mocked), multilingual, end-to-end pipeline, performance
+- `telegram_bot/bot.py` — added `/youtube` and `/yt` commands,
+  `SKILL_CATALOG` entry, full Markdown-card rendering with
+  Telegram's 4096-char message-length limit handled by
+  follow-up messages
+- `skills/intent_skill.py` — added `/youtube` intent pattern
+  with English + Egyptian dialect triggers, URL detection, and
+  verbs (analyse, summarise, transcribe, review, explain)
+- `requirements.txt` — added `youtube-transcript-api>=0.6.2`
+- `README.md` — full YouTube section
+
+### Test counts
+
+- 377 passed, 5 skipped (up from 310, 3 skipped)
+- Pattern matching < 2ms; URL parser < 0.5ms per call;
+  heuristic summary < 200ms for 1,000 segments
+
+### Lessons learned
+
+1. **Lazy imports for optional deps** — `youtube-transcript-api` is
+   only imported when `extract_transcript` is called. This keeps
+   CI fast and avoids breaking the module if the dep is missing.
+2. **Mock via `sys.modules`** — the test suite injects a fake
+   `youtube_transcript_api` module into `sys.modules` so the
+   lazy import inside `_fetch_transcript_yta` resolves to the
+   mock. `monkeypatch.setattr` doesn't work on names that haven't
+   been imported yet.
+3. **Pattern specificity matters** — the first cut of the
+   YouTube intent pattern matched `"ããßä ÊÍáá ÇáÜ dataset Ïå"`
+   (an EFI-OS request) because the verb `ÊÍáá` overlapped.
+   Fix: require a YouTube-context token (`ÇáÝíÏíæ`, `ÇáíæÊíæÈ`,
+   `youtube`, `yt`) immediately after the verb.
+4. **def parse_url("https://...")** — the regex needs to handle
+   every shape YouTube has ever shipped. Shorts/embed/live all
+   live under the same domain but with different path prefixes.
+   The cleanest parser is: if host is youtu.be -> path is the ID;
+   else if path starts with `/shorts/`, `/embed/`, `/live/`,
+   or `/v/` -> the next path segment is the ID; else
+   `/watch?v=...` from the query string.
