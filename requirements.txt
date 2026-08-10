@@ -9,7 +9,7 @@ anthropic>=0.18.0
 fastapi>=0.110.0
 uvicorn>=0.27.0
 scipy>=1.11.0
-numpy>=1.24.0
+numpy>=2.5.1
 pandas>=2.0.0
 # 5 library-backed skills (added 2026-07-29)
 pycoingecko>=3.1.0
