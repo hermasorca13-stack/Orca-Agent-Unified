@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-08-26T03:01:52.544213+00:00",
+  "source": "Binance public REST /api/v3/klines",
+  "symbol": "BTC/USDT",
+  "interval": "1h",
+  "bars": 1000,
+  "range": [
+    "2026-07-15T12:00:00+00:00",
+    "2026-08-26T03:00:00+00:00"
+  ],
+  "in_sample": {
+    "trades": 479,
+    "wins": 142,
+    "losses": 337,
+    "net_pnl": -378.42948573663307,
+    "gross_pnl": -91.51938493196991,
+    "total_costs": 286.91010080471085,
+    "max_drawdown": 0.003784294857366331,
+    "win_rate": 0.2964509394572025,
+    "profit_factor": 0.4288420861690973,
+    "sharpe": -4.659771281861112,
+    "sortino": -6.499058072246338
+  },
+  "out_of_sample": {
+    "trades": 299,
+    "wins": 106,
+    "losses": 193,
+    "net_pnl": -97.37255580000055,
+    "gross_pnl": 81.94884874746447,
+    "total_costs": 179.3214045474625,
+    "max_drawdown": 0.0013341976699706858,
+    "win_rate": 0.35451505016722407,
+    "profit_factor": 0.8104009592100673,
+    "sharpe": -0.9636224301182884,
+    "sortino": -1.7793595816875454
+  },
+  "walk_forward_windows": 13,
+  "monte_carlo_p95_max_drawdown": 0.006164813795423043,
+  "stress": {
+    "baseline_net_pnl": -480.10898065812944,
+    "wide_spread_net_pnl": -1865.8597226843704,
+    "high_fee_net_pnl": -1712.8440171381371,
+    "data_interruption_net_pnl": -480.10898065812944
+  },
+  "acceptance_gate": {
+    "sharpe_gt_2": "False",
+    "profit_factor_gt_2": "False",
+    "max_drawdown_lt_20pct": true,
+    "win_rate_gt_50pct": false
+  }
+}
