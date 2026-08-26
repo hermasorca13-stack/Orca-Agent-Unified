@@ -25,6 +25,13 @@ from trading_bot.analytics.governance21 import Section21Governance
 from trading_bot.analytics.calibration22 import BayesianCalibrator
 from trading_bot.analytics.immune_memory22 import ImmuneMemory
 from trading_bot.analytics.section22 import Section22Layer
+from trading_bot.analytics.infrastructure23 import InfrastructureGuard, NodeAssignment
+from trading_bot.analytics.execution_quality23 import AlmgrenChrissScheduler, SmartOrderRouter, VenueQuote, validate_defi_execution, vpin
+from trading_bot.analytics.derivatives23 import OptionPosition, portfolio_greeks
+from trading_bot.analytics.capacity23 import CapacityAnalyzer
+from trading_bot.analytics.data_quality23 import DataQualityGate, SourcePriority
+from trading_bot.analytics.rollout23 import CapitalRamp, CodeReleaseGovernance
+from trading_bot.analytics.compliance23 import LegalComplianceGate, check_mica_counterparty
 from trading_bot.analytics.shadow import compare_shadow_to_backtest, drift_action
 from trading_bot.analytics.retirement import evaluate as retirement_evaluate
 from trading_bot.risk.kelly import confidence_volatility_size
@@ -95,6 +102,46 @@ def test_validation_tools_run_without_future_data():
     assert len(walk_forward(frame, signal_fn, train_size=220, test_size=40)) > 0
     assert monte_carlo_max_drawdown([0.01, -0.005, 0.008, -0.004]) >= 0.0
     assert "wide_spread_net_pnl" in stress_suite(frame, signal_fn)
+
+
+def test_section23_infrastructure_separates_live_and_research_nodes():
+    guard = InfrastructureGuard(latency_limit_ms=500.0)
+    guard.validate_separation([NodeAssignment("live", "live_trading_node", ("live_execution", "kill_switch")), NodeAssignment("research", "research_compute_node", ("section21_discovery_stress",))])
+    assert guard.record_latency("live", 600.0).healthy is False
+    assert guard.budget("live_execution").node_role == "live_trading_node"
+
+
+def test_section23_execution_quality_only_tightens_under_toxicity():
+    prices = [100 + (i % 2) * 0.1 for i in range(40)]
+    volumes = [10.0] * 40
+    report = vpin(prices, volumes)
+    assert 0.0 <= report.vpin <= 1.0
+    slices = AlmgrenChrissScheduler(seed=23).schedule(100.0, slices=5, horizon_seconds=100)
+    assert sum(item.fraction for item in slices) == pytest.approx(1.0)
+    assert validate_defi_execution(private_rpc=False, slippage_bps=1.0, mev_cost_bps=1.0).allowed is False
+    assert SmartOrderRouter().choose([VenueQuote("a", 1000, 2, 0.9, 10)], required_notional=100).venue == "a"
+
+
+def test_section23_greeks_capacity_and_data_quality_guards():
+    exposure = portfolio_greeks([OptionPosition("BTC-call", 1, 100, 100, 30 / 365, 0.5, 0.02)], vega_limit=1000)
+    assert exposure.accepted is True and exposure.gamma_hedge_required is False
+    capacity = CapacityAnalyzer().assess(strategy="x", symbol="BTC/USDT", adv_notional=10000, requested_notional=500, volatility=0.1)
+    assert capacity.weight_multiplier <= 1.0
+    quality = DataQualityGate(priorities=(SourcePriority("spot", ("primary", "secondary")),)).compare("spot", {"primary": 100.0, "secondary": 100.1})
+    assert quality.accepted is True and quality.selected_source == "primary"
+    section20 = Section20Layer()
+    toxicity = vpin([100 + (i % 2) * 0.1 for i in range(40)], [10.0] * 40)
+    execution = section20.section23_execution(prior_gates_allowed=True, toxicity=toxicity, venues=[VenueQuote("a", 1000, 2, 0.9, 10)], required_notional=100)
+    assert execution.allowed_after_prior_gates is False
+    assert execution.reason == "legal_compliance_hold"
+    assert section20.state.last_section23_decision is execution
+
+
+def test_section23_rollout_and_legal_holds_are_fail_closed():
+    assert CapitalRamp().shadow_to_pilot(shadow_pass=False).accepted is False
+    assert CodeReleaseGovernance(stable_version="stable").review(staging_pass=True, independent_review=False, canary_pass=True).accepted is False
+    assert LegalComplianceGate(jurisdiction="Egypt", activity="crypto trading").assess(official_source_verified=False, qualified_counsel_approved=False).allowed_to_trade is False
+    assert check_mica_counterparty(counterparty="x", register_checked=True, authorised=False, register_version="2026-08-21").allowed_to_trade is False
 
 
 def test_section22_calibration_is_bounded_review_only():

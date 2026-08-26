@@ -16,3 +16,7 @@
 | 2026-08-26 | تنفيذ القسم 22.1–22.4 | `calibration22.py`، `immune_memory22.py`، و`section22.py`: GP/Thompson مقيد، ذاكرة مناعية مشتركة، negative/clonal selection، decay، AuditLog، Kill-Switch، ودمج وحيد مع Section20Layer. |
 | 2026-08-26 | تحقق القسم 22 على بيانات عامة | `section22_report_2026-08-26.json`: 1000 شمعة Binance، اقتراح معايرة واحد review-only، صفر تنفيذ، 44 antigen proxy، 43 كاشفًا محتفظًا، ورفض بوابات القسم 20. المقارنة الأدائية لم تُنفذ لغياب evaluator parameterized موحد، ولا توجد دعوى تحسن. |
 | 2026-08-26 | اختبارات القسم 22 | 33 اختبار ORCA ناجحًا، مع التحذيرات العددية السابقة غير الفاشلة. |
+
+| 2026-08-26 | تنفيذ القسم 23.1–23.13 | `infrastructure23.py`، `execution_quality23.py`، `derivatives23.py`، `capacity23.py`، `data_quality23.py`، `rollout23.py`، `compliance23.py`، و`section23.py`: فصل العقد، ميزانيات، VPIN، AC/SOR، MEV guard، Greeks، capacity، cross-source/PIT، rollout، legal hold، continuity، insurance، benchmark، وKill-Switch. |
+| 2026-08-26 | تحقق القسم 23 ببيانات Binance العامة | `section23_report_2026-08-26.json`: quote latency 3278.9295ms وorder-book latency 2763.9149ms مقابل حد 500ms؛ Kill-Switch فعّال، صفر أوامر، صفر مفاتيح، legal hold فعّال. |
+| 2026-08-26 | اختبارات القسم 23 | 37 اختبار ORCA ناجحًا بعد إصلاح اختبار تكامل واحد، قبل regression النهائي. |

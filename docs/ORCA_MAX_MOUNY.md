@@ -68,6 +68,15 @@
 | `trading_bot/analytics/immune_memory22.py` | ذاكرة مناعية مشتركة، negative selection، clonal refinement، decay |
 | `trading_bot/analytics/section22.py` | منسق القسم 22 مع AuditLog وKill-Switch |
 | `docs/SECTION22_IMPLEMENTATION.md` | مطابقة بنود القسم 22 ونتيجة التحقق الواقعي |
+| `trading_bot/analytics/infrastructure23.py` | ميزانيات الحوسبة، فصل العقد، ومراقبة latency |
+| `trading_bot/analytics/execution_quality23.py` | VPIN، حماية market making، AC scheduler، SOR، وحارس MEV |
+| `trading_bot/analytics/derivatives23.py` | Greeks وحد Vega وIV surface diagnostics |
+| `trading_bot/analytics/capacity23.py` | السعة، الأثر، alpha decay، والازدحام |
+| `trading_bot/analytics/data_quality23.py` | تحقق مصادر متعددة وأرشفة point-in-time |
+| `trading_bot/analytics/rollout23.py` | pilot ramp وcode review/canary/rollback |
+| `trading_bot/analytics/compliance23.py` | legal hold، MiCA check، tax ledger، continuity، insurance، benchmark |
+| `trading_bot/analytics/section23.py` | المنسق الموحد لقيود الواقع والتنفيذ والقانون |
+| `docs/SECTION23_IMPLEMENTATION.md` | مطابقة بنود القسم 23 ونتيجة التحقق الواقعي |
 | `assets/orca_max_mouny/orca-whale.svg` | شعار حوت الأوركا بصيغة SVG |
 | `deploy/` | قالب Docker/systemd ونشر مستقل للمضيف الدائم |
 
@@ -87,6 +96,7 @@ PYTHONPATH=. python3 scripts/orca_meta_label_real.py
 PYTHONPATH=. python3 scripts/orca_optimize_real.py
 PYTHONPATH=. python3 scripts/orca_section21_real.py
 PYTHONPATH=. python3 scripts/orca_section22_real.py
+PYTHONPATH=. python3 scripts/orca_section23_real.py
 python3 -m trading_bot.cli.doctor
 pytest -q tests/trading_bot
 ```
@@ -114,6 +124,10 @@ pytest -q tests/trading_bot
 القسم 21 لا يخفف حدود المخاطر، ولا يملك سلطة Live مباشرة، وأي تغير هيكلي يحتاج مراجعة. أضيف القسم 22 كحلقة معايرة وذاكرة مناعية review-only؛ الاقتراحات محكومة بنطاقات آمنة، والذاكرة لا تخفف إلا عبر اضمحلال تدريجي واختبار ظلي. تحقق القسم 22 على 1000 شمعة عامة نتج عنه اقتراح واحد، صفر تنفيذ، 44 antigen proxy، و43 كاشفًا محتفظًا، مع رفض بوابات CPCV/PBO/DSR/shadow؛ لا توجد دعوى تحسن. التفاصيل في [`SECTION22_IMPLEMENTATION.md`](SECTION22_IMPLEMENTATION.md) و[`section22_report_2026-08-26.json`](section22_report_2026-08-26.json).
 
 مفاتيح Sandbox وLive، فحص منصات المستخدم، وتشغيل Windows الفعلي ما تزال خارج هذه البيئة.
+
+### تحقق القسم 23
+
+شغّل `scripts/orca_section23_real.py` بقراءة فقط من Binance العام. جرى قياس quote latency = 3278.9295 ms وorder-book latency = 2763.9149 ms مقابل حد 500 ms، ففعل النظام Kill-Switch ولم يسمح بأي قرار تنفيذ. بلغ VPIN التشخيصي 0.216484، ولم تُرسل أوامر أو معاملات DeFi، ولم تُستخدم مفاتيح. بقي الحجز القانوني فعالًا لغياب مراجعة قانونية وترخيص خارجي موثق. التفاصيل في [`SECTION23_IMPLEMENTATION.md`](SECTION23_IMPLEMENTATION.md) و[`section23_report_2026-08-26.json`](section23_report_2026-08-26.json).
 
 ## مراجع التنفيذ
 
