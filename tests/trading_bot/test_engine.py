@@ -9,6 +9,14 @@ from trading_bot.analytics.statistics import validate_pair
 from trading_bot.analytics.validation import monte_carlo_max_drawdown, out_of_sample, stress_suite, walk_forward
 from trading_bot.analytics.model_registry import ModelRegistry
 from trading_bot.analytics.optimization_cycle import CumulativeOptimizer
+from trading_bot.analytics.regime import Regime, detect_regime
+from trading_bot.analytics.weighting import DynamicAllocator, PerformanceWindow
+from trading_bot.analytics.bias_control import deflated_sharpe_ratio, probability_backtest_overfitting, purged_combinatorial_folds
+from trading_bot.analytics.execution_feedback import ExecutionFeedback
+from trading_bot.analytics.section20 import Section20Layer
+from trading_bot.analytics.shadow import compare_shadow_to_backtest, drift_action
+from trading_bot.analytics.retirement import evaluate as retirement_evaluate
+from trading_bot.risk.kelly import confidence_volatility_size
 from trading_bot.data.hub import MarketDataHub
 from trading_bot.storage.market_store import MarketStore
 from trading_bot.strategies.arbitrage import cross_exchange_signal
@@ -16,13 +24,12 @@ from trading_bot.config.settings import ConfigurationError, ExchangeCredentials,
 from trading_bot.cycle import TradingCycle
 from trading_bot.execution.engine import ExecutionEngine, ExecutionPlan
 from trading_bot.execution.position_manager import fibonacci_targets, manage_position
-from trading_bot.models import CostEstimate, MarketQuote, RiskSnapshot, Side
+from trading_bot.models import CostEstimate, Fill, MarketQuote, Position, RiskSnapshot, Side
 from trading_bot.risk.gates import MarketContext, RiskEngine
 from trading_bot.risk.policy import PortfolioPolicy, PortfolioState
 from trading_bot.risk.kill_switch import KillSwitch
 from trading_bot.risk.hedging import beta_weighted_hedge
 from trading_bot.security.vault import LocalApiVault, VaultError
-from trading_bot.models import Position
 from trading_bot.monitoring import OperationalMonitor
 from trading_bot.storage.audit import AuditLog
 from trading_bot.strategies.technical import technical_signal
@@ -77,6 +84,55 @@ def test_validation_tools_run_without_future_data():
     assert len(walk_forward(frame, signal_fn, train_size=220, test_size=40)) > 0
     assert monte_carlo_max_drawdown([0.01, -0.005, 0.008, -0.004]) >= 0.0
     assert "wide_spread_net_pnl" in stress_suite(frame, signal_fn)
+
+
+def test_section20_layer_updates_feedback_and_shadow_state():
+    layer = Section20Layer()
+    fill = Fill("id", "paper", "BTC/USDT", Side.BUY, 1.0, 100.10, 0.0, "USD")
+    cost, decisions = layer.on_closed_trade(exchange="paper", symbol="BTC/USDT", expected_price=100.0, fill=fill, strategy="momentum", window=PerformanceWindow("momentum", 50, 0.55, 1.1, 0.2), base_cost=CostEstimate(4.0, 1.0, 2.0, 0.0, 0.0, 0.0, 0.0))
+    assert cost.slippage > 0.0 and decisions
+    gate = layer.shadow_gate(shadow_win_rate=0.5, backtest_win_rate=0.52, shadow_pnl=10, backtest_pnl=10, shadow_trades=30)
+    assert gate.accepted is True
+
+
+def test_shadow_retirement_and_kelly_gates_are_conservative():
+    shadow = compare_shadow_to_backtest(shadow_win_rate=0.50, backtest_win_rate=0.55, shadow_pnl=90.0, backtest_pnl=100.0, shadow_trades=30)
+    assert shadow.accepted is True
+    assert drift_action(shadow, currently_live=False) == "eligible_for_reviewed_promotion"
+    retired = retirement_evaluate("momentum:BTC/USDT", previous_weight=0.20, win_rate=0.30, sharpe=-1.0, pbo=0.8, consecutive_bad_windows=3)
+    assert retired.status == "watchlist"
+    assert retired.new_weight < retired.previous_weight
+    assert confidence_volatility_size(equity=100_000, probability=0.90, payoff_ratio=2.0, atr_pct=0.02) <= 1000.0
+
+
+def test_execution_feedback_updates_cost_and_suspends_venue():
+    feedback = ExecutionFeedback(assumed_slippage_bps=2.0, repeated_breaches=3)
+    base = CostEstimate(4.0, 1.0, 2.0, 0.0, 0.0, 0.0, 0.0)
+    for _ in range(3):
+        fill = Fill("id", "paper", "BTC/USDT", Side.BUY, 1.0, 100.10, 0.0, "USD")
+        feedback.record(exchange="paper", symbol="BTC/USDT", expected_price=100.0, fill=fill)
+    assert feedback.stats("paper", "BTC/USDT")["suspended"] is True
+    assert feedback.update_cost("paper", "BTC/USDT", base).slippage > base.slippage
+
+
+def test_bias_control_tools_purge_and_deflate():
+    folds = purged_combinatorial_folds(100, groups=5, test_groups=2, embargo=3, label_horizon=2)
+    assert len(folds) == 10
+    assert all(set(fold.train).isdisjoint(set(fold.test)) for fold in folds)
+    pbo = probability_backtest_overfitting([[0.1, 0.2, -0.1, 0.0], [0.0, 0.1, 0.1, 0.1], [0.2, 0.0, 0.0, -0.1]])
+    assert 0.0 <= pbo <= 1.0
+    assert 0.0 <= deflated_sharpe_ratio(1.0, trials=10, observations=100) <= 1.0
+
+
+def test_regime_detector_and_dynamic_allocator_are_capped():
+    index = pd.date_range("2025-01-01", periods=80, freq="h", tz="UTC")
+    close = pd.Series([100 + i * 0.01 for i in range(80)], index=index)
+    frame = pd.DataFrame({"close": close, "volume": 1000.0}, index=index)
+    snapshot = detect_regime(frame, funding_rate=0.0)
+    assert snapshot.regime in (Regime.QUIET, Regime.TRANSITIONAL, Regime.TURBULENT)
+    weights, decisions = DynamicAllocator(step_limit=0.05).allocate([PerformanceWindow("momentum", 80, 0.60, 1.2, 1.0), PerformanceWindow("pairs", 80, 0.40, 0.8, -0.5)], {})
+    assert abs(sum(weights.values()) - 1.0) < 1e-9
+    assert all(abs(decision.proposed - decision.previous) <= 0.05 + 1e-9 for decision in decisions)
 
 
 def test_cumulative_optimizer_records_rejected_promotion(tmp_path):

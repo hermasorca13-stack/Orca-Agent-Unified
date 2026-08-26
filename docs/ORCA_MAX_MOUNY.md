@@ -46,6 +46,15 @@
 | `trading_bot/analytics/backtest.py` | اختبار رجعي زمني بلا look-ahead مع رسوم وانزلاق |
 | `trading_bot/analytics/validation.py` | OOS، Walk-Forward، Monte Carlo، واختبارات ضغط |
 | `trading_bot/analytics/model_registry.py` | تدريب مرحلي واعتماد نموذج بإقرار مراجع دون تغيير المخاطر |
+| `trading_bot/analytics/meta_labeling.py` | Triple-Barrier وMeta-Labeling احتمالي بالـATR |
+| `trading_bot/analytics/regime.py` | كشف quiet/transitional/turbulent وتكييف العتبات والأوزان |
+| `trading_bot/analytics/weighting.py` | ترجيح تراكمي بسقف وتغيير تدريجي |
+| `trading_bot/analytics/bias_control.py` | CPCV مع Purging/Embargo وPBO وDeflated Sharpe |
+| `trading_bot/analytics/execution_feedback.py` | تعلم الانزلاق وترتيب المنصات وتعليق المتدهور |
+| `trading_bot/analytics/shadow.py` | بوابة التداول الظلي وكشف الانحراف |
+| `trading_bot/analytics/retirement.py` | تقاعد تشغيلي تراكمي قابل لإعادة التفعيل |
+| `trading_bot/risk/kelly.py` | Fractional Kelly مقيد بسقف المخاطر والتقلب |
+| `docs/SECTION20_IMPLEMENTATION.md` | مطابقة بنود القسم 20 ونتائج التحقق |
 | `assets/orca_max_mouny/orca-whale.svg` | شعار حوت الأوركا بصيغة SVG |
 | `deploy/` | قالب Docker/systemd ونشر مستقل للمضيف الدائم |
 
@@ -60,6 +69,9 @@ cp .env.orca.example .env.orca
 set -a; . .env.orca; set +a
 python3 run_orca_max_mouny.py status
 python3 run_orca_max_mouny.py paper-demo
+PYTHONPATH=. python3 -m trading_bot.app paper-history
+PYTHONPATH=. python3 scripts/orca_meta_label_real.py
+PYTHONPATH=. python3 scripts/orca_optimize_real.py
 python3 -m trading_bot.cli.doctor
 pytest -q tests/trading_bot
 ```

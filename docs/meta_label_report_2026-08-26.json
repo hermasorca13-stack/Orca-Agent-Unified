@@ -1,0 +1,9 @@
+{
+  "bars": 1000,
+  "events": 936,
+  "train_events": 655,
+  "test_events": 281,
+  "test_positive_rate": 0.4199288256227758,
+  "meta_accept_rate": 0.4483985765124555,
+  "meta_mean_probability": 0.5179769138055134
+}
