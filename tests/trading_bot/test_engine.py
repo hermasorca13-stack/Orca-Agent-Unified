@@ -7,16 +7,20 @@ from trading_bot.adapters.paper import PaperExchange
 from trading_bot.analytics.backtest import run_backtest
 from trading_bot.analytics.statistics import validate_pair
 from trading_bot.analytics.validation import monte_carlo_max_drawdown, out_of_sample, stress_suite, walk_forward
+from trading_bot.analytics.model_registry import ModelRegistry
 from trading_bot.data.hub import MarketDataHub
 from trading_bot.storage.market_store import MarketStore
 from trading_bot.strategies.arbitrage import cross_exchange_signal
 from trading_bot.config.settings import ConfigurationError, ExchangeCredentials, Settings
 from trading_bot.cycle import TradingCycle
 from trading_bot.execution.engine import ExecutionEngine, ExecutionPlan
+from trading_bot.execution.position_manager import fibonacci_targets, manage_position
 from trading_bot.models import CostEstimate, MarketQuote, RiskSnapshot, Side
 from trading_bot.risk.gates import MarketContext, RiskEngine
 from trading_bot.risk.policy import PortfolioPolicy, PortfolioState
 from trading_bot.risk.kill_switch import KillSwitch
+from trading_bot.risk.hedging import beta_weighted_hedge
+from trading_bot.models import Position
 from trading_bot.monitoring import OperationalMonitor
 from trading_bot.storage.audit import AuditLog
 from trading_bot.strategies.technical import technical_signal
@@ -71,6 +75,32 @@ def test_validation_tools_run_without_future_data():
     assert len(walk_forward(frame, signal_fn, train_size=220, test_size=40)) > 0
     assert monte_carlo_max_drawdown([0.01, -0.005, 0.008, -0.004]) >= 0.0
     assert "wide_spread_net_pnl" in stress_suite(frame, signal_fn)
+
+
+def test_model_registry_stages_and_approves_without_risk_mutation(tmp_path):
+    features = pd.DataFrame({"spread": [0.1 + i * 0.001 for i in range(40)], "volume": [1.0 + (i % 3) for i in range(40)]}).to_numpy()
+    labels = [i % 2 for i in range(40)]
+    registry = ModelRegistry(tmp_path / "models")
+    staged = registry.train_and_stage(features, labels)
+    approved = registry.approve(staged, reviewer="risk-reviewer")
+    assert staged.exists() and approved.exists()
+    assert "approved_by" in approved.read_text()
+
+
+def test_position_manager_moves_stop_and_calculates_targets():
+    position = Position("paper", "BTC/USDT", Side.BUY, 1.0, 100.0, 101.5)
+    targets = fibonacci_targets(100.0, 98.0, Side.BUY)
+    assert targets == pytest.approx((102.764, 103.236))
+    decision = manage_position(position, stop_price=98.0, current_price=101.5, atr_value=0.5)
+    assert decision.action == "move_stop_to_breakeven"
+    assert decision.stop_price == 100.0
+
+
+def test_beta_weighted_hedge_recalculates_neutrality():
+    position = Position("paper", "ETH/USDT", Side.BUY, 10.0, 100.0, 100.0)
+    plan = beta_weighted_hedge(position, "BTC/USDT", 1.2, 0.8)
+    assert plan.net_beta_exposure == pytest.approx(0.0)
+    assert plan.hedge_notional < 0
 
 
 def test_operational_monitor_triggers_kill_switch(tmp_path):
