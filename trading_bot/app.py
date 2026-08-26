@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from trading_bot.adapters import PaperExchange
+from trading_bot.analytics.execution_quality23 import VenueQuote, vpin
+from trading_bot.analytics.section20 import Section20Layer
 from trading_bot.data.providers import BinancePublicProvider
 from trading_bot.config import ConfigurationError, load_settings
 from trading_bot.execution.engine import ExecutionEngine, ExecutionPlan
@@ -15,6 +17,21 @@ from trading_bot.models import CostEstimate, MarketQuote, RiskSnapshot, Side, Tr
 from trading_bot.risk.gates import MarketContext, RiskEngine
 from trading_bot.storage.audit import AuditLog
 from trading_bot.strategies.technical import technical_signal
+
+
+def _adaptive_paper_gate(layer: Section20Layer, audit: AuditLog, signal, quote: MarketQuote, amount: float):
+    context = layer.section24_context(now=quote.timestamp, currency="USD")
+    audit.write("section24_context", context)
+    toxicity = vpin([quote.mid] * 10, [1.0] * 10)
+    decision = layer.section23_execution(
+        prior_gates_allowed=True,
+        toxicity=toxicity,
+        venues=[VenueQuote("paper", max(amount * quote.mid, 1.0), 4.0, 1.0, quote.latency_ms)],
+        required_notional=max(amount * quote.mid, 1.0),
+        paper_mode=True,
+    )
+    audit.write("section23_runtime_decision", decision)
+    return decision
 
 
 def build_adapters(settings):
@@ -65,7 +82,11 @@ def paper_demo() -> int:
         print(f"REJECTED {gate.code}: {','.join(gate.reasons)}")
         return 0
     amount = risk.position_size(snapshot.equity, abs(quote.mid - (signal.stop_price or quote.mid)), quote.mid, context.atr_pct)
-    fills = execution.staged_entry(ExecutionPlan("paper", signal.symbol, signal.side, amount, quote.ask, strategy=signal.strategy))
+    adaptive = _adaptive_paper_gate(Section20Layer(), audit, signal, quote, amount)
+    if not adaptive.allowed_after_prior_gates or adaptive.order_fraction <= 0.0:
+        print(f"REJECTED {adaptive.reason}")
+        return 0
+    fills = execution.staged_entry(ExecutionPlan("paper", signal.symbol, signal.side, amount * adaptive.order_fraction, quote.ask, strategy=signal.strategy, approved=True))
     print(f"EXECUTED_PAPER fills={len(fills)} amount={sum(fill.amount for fill in fills):.8f}")
     return 0
 
@@ -99,7 +120,11 @@ def paper_history_demo() -> int:
         print({"mode": "paper", "action": "REJECTED", "code": gate.code, "reasons": gate.reasons})
         return 0
     amount = risk.position_size(snapshot.equity, max(abs(quote.mid - (signal.stop_price or quote.mid)), quote.mid * 0.005), quote.mid, 0.01)
-    fills = ExecutionEngine({"paper": exchange}, audit).staged_entry(ExecutionPlan("paper", signal.symbol, signal.side, amount, quote.ask if signal.side == Side.BUY else quote.bid, strategy=signal.strategy))
+    adaptive = _adaptive_paper_gate(Section20Layer(), audit, signal, quote, amount)
+    if not adaptive.allowed_after_prior_gates or adaptive.order_fraction <= 0.0:
+        print({"mode": "paper", "action": "REJECTED", "code": adaptive.reason})
+        return 0
+    fills = ExecutionEngine({"paper": exchange}, audit).staged_entry(ExecutionPlan("paper", signal.symbol, signal.side, amount * adaptive.order_fraction, quote.ask if signal.side == Side.BUY else quote.bid, strategy=signal.strategy, approved=True))
     print({"mode": "paper", "action": "EXECUTED_PAPER", "fills": len(fills), "amount": sum(fill.amount for fill in fills), "bars": len(frame), "source": "Binance historical OHLCV"})
     return 0
 
@@ -132,7 +157,11 @@ def paper_live_demo() -> int:
         print({"mode": "paper", "action": "REJECTED", "code": gate.code, "reasons": gate.reasons})
         return 0
     amount = risk.position_size(snapshot.equity, abs(quote.mid - (signal.stop_price or quote.mid)), quote.mid, 0.01)
-    fills = ExecutionEngine({"paper": exchange}, audit).staged_entry(ExecutionPlan("paper", signal.symbol, signal.side, amount, quote.ask if signal.side == Side.BUY else quote.bid, strategy=signal.strategy))
+    adaptive = _adaptive_paper_gate(Section20Layer(), audit, signal, quote, amount)
+    if not adaptive.allowed_after_prior_gates or adaptive.order_fraction <= 0.0:
+        print({"mode": "paper", "action": "REJECTED", "code": adaptive.reason})
+        return 0
+    fills = ExecutionEngine({"paper": exchange}, audit).staged_entry(ExecutionPlan("paper", signal.symbol, signal.side, amount * adaptive.order_fraction, quote.ask if signal.side == Side.BUY else quote.bid, strategy=signal.strategy, approved=True))
     print({"mode": "paper", "action": "EXECUTED_PAPER", "fills": len(fills), "amount": sum(fill.amount for fill in fills), "source": "Binance public data"})
     return 0
 

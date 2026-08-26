@@ -63,10 +63,10 @@ class Section23Layer:
         self.legal_hold = not status.allowed_to_trade
         self._audit("section23_legal_status", status)
 
-    def execution_decision(self, *, prior_gates_allowed: bool, toxicity: ToxicityReport, venues: list[VenueQuote], required_notional: float, capacity: CapacityReport | None = None, defi: DefiExecutionGuard | None = None) -> Section23ExecutionDecision:
+    def execution_decision(self, *, prior_gates_allowed: bool, toxicity: ToxicityReport, venues: list[VenueQuote], required_notional: float, capacity: CapacityReport | None = None, defi: DefiExecutionGuard | None = None, paper_mode: bool = False) -> Section23ExecutionDecision:
         if self.stopped():
             return Section23ExecutionDecision(False, False, None, 0.0, "kill_switch_active")
-        if self.legal_hold:
+        if self.legal_hold and not paper_mode:
             return Section23ExecutionDecision(False, False, None, 0.0, "legal_compliance_hold")
         if not prior_gates_allowed:
             return Section23ExecutionDecision(False, False, None, 0.0, "prior_section_gates_required")
@@ -75,7 +75,7 @@ class Section23Layer:
         if not quote.quote_allowed or selected is None or (capacity is not None and not capacity.accepted) or (defi is not None and not defi.allowed):
             return Section23ExecutionDecision(False, quote.quote_allowed, selected.venue if selected else None, 0.0, "execution_quality_or_capacity_rejected")
         fraction = min(1.0, capacity.weight_multiplier if capacity else 1.0)
-        decision = Section23ExecutionDecision(True, True, selected.venue, fraction, "execution_constraints_passed_review_only")
+        decision = Section23ExecutionDecision(True, True, selected.venue, fraction, "paper_execution_constraints_passed" if paper_mode else "execution_constraints_passed_review_only")
         self._audit("section23_execution_decision", decision)
         return decision
 

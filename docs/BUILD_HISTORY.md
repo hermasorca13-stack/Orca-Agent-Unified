@@ -29,3 +29,9 @@
 
 | 2026-08-26 | استخلاص ملف `orca-skills-techniques-strategies.ts` | جرت مقارنة الملف ببنية Python الحالية. أُضيف `capability_catalog.py` و`docs/CAPABILITY_CATALOG.md` فقط للعناصر الجديدة المفيدة: سجل قدرات قائم على الدليل، فحص فرادة المعرفات، وربط الحالة بملفات الإثبات. استُبعدت بنية Expo/React Native وtRPC/Drizzle وVitest ومسارات الجوال لأنها غير موجودة في هذا المستودع أو مكررة/غير منطبقة، ولم تُستخلص أي استراتيجية تداول أو دعوى أداء. |
 | 2026-08-26 | تحقق الاستخلاص | فحص الجاهزية: Paper جاهز، Sandbox يحتاج اعتمادًا وفحص حساب، Live غير جاهز، السحب معطل. اختبارات ORCA: 41 ناجحًا، و`compileall` و`git diff --check` ناجحان. |
+
+| 2026-08-26 | تدقيق هندسي وتشغيلي وأكاديمي | كُشف أن Section20–24 كانت متكاملة داخل الطبقة التحليلية لكن مسارات `app.py` كانت تستدعي ExecutionEngine مباشرة. أُغلق ذلك بربط Paper عبر `_adaptive_paper_gate` ثم Section20/24/23 قبل PaperExchange، مع رفض `paper-live` عند تجاوز latency. |
+| 2026-08-26 | حارس تنفيذ دفاعي | أضيف `ExecutionPlan.approved=False` افتراضيًا؛ أي خطة غير معتمدة تسجل `execution_rejected` وترفع `PermissionError` قبل adapter. استُكمل اختبار المسار غير المعتمد والمعتمد، ولم تُمنح Live authority. |
+
+| 2026-08-26 | تدقيق تشغيلي نهائي | كُشف وأُغلق ربط `app.py` الفعلي بالأقسام 20–24 قبل PaperExchange، وأضيف اعتماد صريح داخل `ExecutionPlan` يرفض أي استدعاء مباشر غير معتمد. تحقق `paper-demo` و`paper-history` بأربع تعبئات ورقية لكل منهما، ورفض `paper-live` بسبب latency. |
+| 2026-08-26 | نتائج التدقيق | 41 اختبار ORCA ناجحًا، و651 اختبار regression ناجحًا مع 4 متجاوزة و3 مستبعدة، و`doctor safe_default=true`، وPaper جاهز، وSandbox/Live غير متحققين دون حسابات المستخدم. التقرير الكامل في `docs/OPERATIONAL_AUDIT_2026-08-26.md`. |

@@ -66,7 +66,9 @@ def test_paper_execution_is_staged(tmp_path):
     exchange = PaperExchange(starting_cash=100_000)
     exchange.set_quote(MarketQuote("paper", "BTC/USDT", 100.0, 101.0))
     audit = AuditLog(tmp_path / "audit.jsonl")
-    fills = ExecutionEngine({"paper": exchange}, audit).staged_entry(ExecutionPlan("paper", "BTC/USDT", Side.BUY, 10.0, 101.0, slices=4))
+    with pytest.raises(PermissionError):
+        ExecutionEngine({"paper": exchange}, audit).staged_entry(ExecutionPlan("paper", "BTC/USDT", Side.BUY, 10.0, 101.0, slices=4))
+    fills = ExecutionEngine({"paper": exchange}, audit).staged_entry(ExecutionPlan("paper", "BTC/USDT", Side.BUY, 10.0, 101.0, slices=4, approved=True))
     assert len(fills) == 4
     assert sum(fill.amount for fill in fills) == pytest.approx(10.0)
     assert (tmp_path / "audit.jsonl").read_text().count("order_fill") == 4

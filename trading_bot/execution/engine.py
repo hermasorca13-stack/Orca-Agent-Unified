@@ -21,6 +21,7 @@ class ExecutionPlan:
     slices: int = 4
     reduce_only: bool = False
     strategy: str = ""
+    approved: bool = False
 
 
 class ExecutionEngine:
@@ -29,6 +30,9 @@ class ExecutionEngine:
         self.audit = audit
 
     def staged_entry(self, plan: ExecutionPlan) -> list[Fill]:
+        if not plan.approved:
+            self.audit.write("execution_rejected", {"exchange": plan.exchange, "symbol": plan.symbol, "reason": "execution_plan_not_approved"})
+            raise PermissionError("execution plan requires explicit approval from prior risk and execution gates")
         adapter = self.adapters[plan.exchange]
         slices = max(1, plan.slices)
         amount = plan.amount / slices
@@ -68,6 +72,6 @@ class ExecutionEngine:
             return []
         fills: list[Fill] = []
         for target in targets:
-            leg = ExecutionPlan(plan.exchange, plan.symbol, Side.SELL if plan.side == Side.BUY else Side.BUY, plan.amount / len(targets), target, 1, True, plan.strategy)
+            leg = ExecutionPlan(plan.exchange, plan.symbol, Side.SELL if plan.side == Side.BUY else Side.BUY, plan.amount / len(targets), target, 1, True, plan.strategy, plan.approved)
             fills.extend(self.staged_entry(leg))
         return fills
