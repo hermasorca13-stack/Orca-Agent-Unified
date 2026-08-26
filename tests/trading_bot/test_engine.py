@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from trading_bot.adapters.paper import PaperExchange
+from trading_bot.analytics.backtest import run_backtest
 from trading_bot.analytics.statistics import validate_pair
 from trading_bot.strategies.arbitrage import cross_exchange_signal
 from trading_bot.config.settings import ConfigurationError, ExchangeCredentials, Settings
@@ -55,6 +56,23 @@ def test_cross_exchange_signal_is_net_positive():
     signal = cross_exchange_signal(buy, sell, CostEstimate(0.1, 0.1, 0.1, 0, 0, 0, 0))
     assert signal is not None
     assert signal.expected_edge_bps > 0
+
+
+def test_live_mode_requires_explicit_confirmation(monkeypatch, tmp_path):
+    monkeypatch.setenv("ORCA_LIVE_CONFIRM", "")
+    settings = Settings(mode="live", state_dir=tmp_path, audit_log=tmp_path / "audit.jsonl", database=tmp_path / "db.sqlite3")
+    with pytest.raises(ConfigurationError, match="ORCA_LIVE_CONFIRM"):
+        settings.validate_startup()
+
+
+def test_backtest_accounts_for_costs():
+    index = pd.date_range("2025-01-01", periods=240, freq="D", tz="UTC")
+    close = pd.Series([100 + i * 0.1 for i in range(240)], index=index)
+    frame = pd.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close + 0.2, "volume": 1_000_000.0}, index=index)
+    result = run_backtest(frame, lambda history: 1.0, fee_bps=4.0, slippage_bps=2.0)
+    assert result.trades > 0
+    assert result.total_costs > 0
+    assert result.gross_pnl > result.net_pnl
 
 
 def test_technical_signal_requires_three_confirmations():
