@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from trading_bot.adapters import PaperExchange
+from trading_bot.data.providers import BinancePublicProvider
 from trading_bot.config import ConfigurationError, load_settings
 from trading_bot.execution.engine import ExecutionEngine, ExecutionPlan
 from trading_bot.models import CostEstimate, MarketQuote, RiskSnapshot, Side, TradingMode
@@ -69,12 +70,83 @@ def paper_demo() -> int:
     return 0
 
 
+def paper_history_demo() -> int:
+    settings = load_settings()
+    if settings.mode != TradingMode.PAPER:
+        raise ConfigurationError("paper-history requires ORCA_TRADING_MODE=paper")
+    provider = BinancePublicProvider(timeout=20.0)
+    rows = provider.fetch_ohlcv("BTC/USDT", interval="1h", limit=260)
+    frame = pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
+    frame["timestamp"] = pd.to_datetime(frame["timestamp"], unit="ms", utc=True)
+    frame = frame.set_index("timestamp")
+    signal = technical_signal(frame, "BTC/USDT")
+    audit = AuditLog(settings.audit_log)
+    if signal is None:
+        audit.write("signal_rejected", {"reason": "no_three_factor_signal", "source": "Binance historical OHLCV"})
+        print({"mode": "paper", "action": "NO_SIGNAL", "bars": len(frame), "source": "Binance historical OHLCV"})
+        return 0
+    last = float(frame["close"].iloc[-1])
+    spread = last * 0.0001
+    quote = MarketQuote("paper", signal.symbol, last - spread / 2, last + spread / 2, bid_size=10.0, ask_size=10.0, volume_24h=float(frame["volume"].tail(24).sum()), latency_ms=0.0)
+    exchange = PaperExchange()
+    exchange.set_quote(quote)
+    risk = RiskEngine(settings)
+    snapshot = RiskSnapshot(100_000.0, 100_000.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, quote.spread_bps)
+    costs = CostEstimate(4.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0)
+    gate = risk.trade_gate(signal, MarketContext(), snapshot, costs)
+    audit.write("risk_gate", gate)
+    if not gate.allowed:
+        print({"mode": "paper", "action": "REJECTED", "code": gate.code, "reasons": gate.reasons})
+        return 0
+    amount = risk.position_size(snapshot.equity, max(abs(quote.mid - (signal.stop_price or quote.mid)), quote.mid * 0.005), quote.mid, 0.01)
+    fills = ExecutionEngine({"paper": exchange}, audit).staged_entry(ExecutionPlan("paper", signal.symbol, signal.side, amount, quote.ask if signal.side == Side.BUY else quote.bid, strategy=signal.strategy))
+    print({"mode": "paper", "action": "EXECUTED_PAPER", "fills": len(fills), "amount": sum(fill.amount for fill in fills), "bars": len(frame), "source": "Binance historical OHLCV"})
+    return 0
+
+
+def paper_live_demo() -> int:
+    settings = load_settings()
+    if settings.mode != TradingMode.PAPER:
+        raise ConfigurationError("paper-live requires ORCA_TRADING_MODE=paper")
+    provider = BinancePublicProvider(timeout=20.0)
+    rows = provider.fetch_ohlcv("BTC/USDT", interval="1h", limit=260)
+    frame = pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
+    frame["timestamp"] = pd.to_datetime(frame["timestamp"], unit="ms", utc=True)
+    frame = frame.set_index("timestamp")
+    signal = technical_signal(frame, "BTC/USDT")
+    quote = provider.fetch_quote("BTC/USDT")
+    audit = AuditLog(settings.audit_log)
+    audit.write("paper_live_snapshot", {"quote": quote, "bars": len(frame)})
+    if signal is None:
+        audit.write("signal_rejected", {"reason": "no_three_factor_signal", "symbol": quote.symbol})
+        print({"mode": "paper", "action": "NO_SIGNAL", "symbol": quote.symbol, "mid": quote.mid})
+        return 0
+    exchange = PaperExchange()
+    exchange.set_quote(MarketQuote("paper", quote.symbol, quote.bid, quote.ask, bid_size=quote.bid_size, ask_size=quote.ask_size, volume_24h=quote.volume_24h, timestamp=quote.timestamp, latency_ms=quote.latency_ms))
+    risk = RiskEngine(settings)
+    snapshot = RiskSnapshot(100_000.0, 100_000.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, quote.latency_ms, quote.spread_bps)
+    costs = CostEstimate(4.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0)
+    gate = risk.trade_gate(signal, MarketContext(), snapshot, costs)
+    audit.write("risk_gate", gate)
+    if not gate.allowed:
+        print({"mode": "paper", "action": "REJECTED", "code": gate.code, "reasons": gate.reasons})
+        return 0
+    amount = risk.position_size(snapshot.equity, abs(quote.mid - (signal.stop_price or quote.mid)), quote.mid, 0.01)
+    fills = ExecutionEngine({"paper": exchange}, audit).staged_entry(ExecutionPlan("paper", signal.symbol, signal.side, amount, quote.ask if signal.side == Side.BUY else quote.bid, strategy=signal.strategy))
+    print({"mode": "paper", "action": "EXECUTED_PAPER", "fills": len(fills), "amount": sum(fill.amount for fill in fills), "source": "Binance public data"})
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="orca-max-mouny")
-    parser.add_argument("command", choices=("paper-demo", "status"))
+    parser.add_argument("command", choices=("paper-demo", "paper-history", "paper-live", "status"))
     args = parser.parse_args(argv)
     if args.command == "paper-demo":
         return paper_demo()
+    if args.command == "paper-history":
+        return paper_history_demo()
+    if args.command == "paper-live":
+        return paper_live_demo()
     settings = load_settings()
     print({"name": settings.name, "mode": settings.mode.value, "active_exchanges": settings.active_exchanges, "state_dir": str(settings.state_dir)})
     return 0

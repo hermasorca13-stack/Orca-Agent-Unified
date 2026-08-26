@@ -157,6 +157,7 @@ cp .env.orca.example .env.orca
 set -a; . .env.orca; set +a
 python3 run_orca_max_mouny.py status
 python3 run_orca_max_mouny.py paper-demo
+PYTHONPATH=. python3 -m trading_bot.app paper-history
 PYTHONPATH=. python3 -m trading_bot.daemon --once
 PYTHONPATH=. pytest -q tests/trading_bot
 ```
