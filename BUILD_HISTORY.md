@@ -215,7 +215,7 @@ Pushed: commit `65082d1` (1f1a3c2..65082d1 master -> master).
 - [ ] Run `/setup gemini <key>` to enable real LLM brain
 - [ ] Consider a CI workflow (`.github/workflows/test.yml`)
 
-## 2026-08-03 — Egyptian-Arabic dialect support for intent_skill
+## 2026-08-03 ï¿½ Egyptian-Arabic dialect support for intent_skill
 
 The intent classifier is the bot's NL front door. The primary user
 (smoha8) communicates in Egyptian Arabic mixed with English, so we
@@ -226,8 +226,8 @@ Egyptian variants each.
 
 - `skills/intent_skill.py`: 80+ new Egyptian dialect patterns added
   to every rule, plus an `ar-eg` language tag for the dialect detector.
-  Fix: use `ø?` (optional shadda) instead of character classes
-  `[Xø]` to avoid the regex engine consuming the shadda and
+  Fix: use `ï¿½?` (optional shadda) instead of character classes
+  `[Xï¿½]` to avoid the regex engine consuming the shadda and
   missing the next consonant.
 - `tests/test_intent_egyptian.py`: 84 scenarios for realistic
   Egyptian phrases (greetings, weather, search, image, etc.)
@@ -244,20 +244,20 @@ Egyptian variants each.
 ### Lessons learned
 
 1. **Char classes with shadda are footguns in Python regex.** A class
-   like `[Ûø]` matches either char, but the engine picks the
-   leftmost. For `ÊÝÑøÛ`, it consumes the shÏÉ, leaving `Û`
-   unmatched. Use `Xø?` (consonant + optional shÏÉ) instead.
-2. **Arabic question mark `¿` is a literal, not a regex quantifier.**
+   like `[ï¿½]` matches either char, but the engine picks the
+   leftmost. For `ï¿½`, it consumes the shï¿½, leaving `ï¿½`
+   unmatched. Use `Xï¿½?` (consonant + optional shï¿½) instead.
+2. **Arabic question mark `ï¿½` is a literal, not a regex quantifier.**
    Use `?` (ASCII) for optional, or escape `\u061f` for literal.
 3. **Test expectations should accept `OR` alternatives.** A phrase
-   like `ããßä ÊÈÍËáí Úä weather API` is genuinely ambiguous between
+   like `ï¿½ ï¿½ ï¿½ weather API` is genuinely ambiguous between
    `/weather` and `/search`. The classifier's choice is defensible
    either way. Pin only the cases where the answer is unambiguous.
 4. **A 30-skill agent bridge can fail at collection time even when
    intent_skill itself is fine.** Always isolate new skill tests
    so they don't pull in telegram_adapter / service code.
 
-## 2026-08-03 — YouTube video analysis skill (youtube_skill)
+## 2026-08-03 ï¿½ YouTube video analysis skill (youtube_skill)
 
 The Orca roadmap listed `youtube_transcript` as a low-priority skill
 and `YouTube Video Research` as an enhanced capability. Today we
@@ -265,7 +265,7 @@ turned both into a production-grade Python skill.
 
 ### What changed
 
-- `skills/youtube_skill.py` (40 KB, 1000+ lines) — full 2026 stack:
+- `skills/youtube_skill.py` (40 KB, 1000+ lines) ï¿½ full 2026 stack:
   - **Zero-API-key URL parser** that handles every YouTube URL shape
     (watch, youtu.be, shorts, embed, live, m.youtube.com,
     music.youtube.com, bare 11-char IDs) and refuses non-YouTube URLs
@@ -275,7 +275,7 @@ turned both into a production-grade Python skill.
     manual captions -> auto-generated -> auto-translate
   - **Multilingual** by design: every supported language is
     selectable by ISO code
-  - **Heuristic summary** (no LLM needed) — multilingual-safe
+  - **Heuristic summary** (no LLM needed) ï¿½ multilingual-safe
     position+length scoring
   - **LLM analysis** with the high-density prompt template from
     `core/skills_data/youtube_research.md` (8+ direct quotes,
@@ -283,18 +283,18 @@ turned both into a production-grade Python skill.
   - **Defensive error hierarchy**: `YouTubeError` +
     `InvalidURLError` / `MetadataError` / `TranscriptError` /
     `AnalysisError`
-- `tests/test_youtube_skill.py` — 67 unit + integration tests
+- `tests/test_youtube_skill.py` ï¿½ 67 unit + integration tests
   covering URL parser, result types, formatters, heuristic, LLM
   (mocked), multilingual, end-to-end pipeline, performance
-- `telegram_bot/bot.py` — added `/youtube` and `/yt` commands,
+- `telegram_bot/bot.py` ï¿½ added `/youtube` and `/yt` commands,
   `SKILL_CATALOG` entry, full Markdown-card rendering with
   Telegram's 4096-char message-length limit handled by
   follow-up messages
-- `skills/intent_skill.py` — added `/youtube` intent pattern
+- `skills/intent_skill.py` ï¿½ added `/youtube` intent pattern
   with English + Egyptian dialect triggers, URL detection, and
   verbs (analyse, summarise, transcribe, review, explain)
-- `requirements.txt` — added `youtube-transcript-api>=0.6.2`
-- `README.md` — full YouTube section
+- `requirements.txt` ï¿½ added `youtube-transcript-api>=0.6.2`
+- `README.md` ï¿½ full YouTube section
 
 ### Test counts
 
@@ -304,20 +304,20 @@ turned both into a production-grade Python skill.
 
 ### Lessons learned
 
-1. **Lazy imports for optional deps** — `youtube-transcript-api` is
+1. **Lazy imports for optional deps** ï¿½ `youtube-transcript-api` is
    only imported when `extract_transcript` is called. This keeps
    CI fast and avoids breaking the module if the dep is missing.
-2. **Mock via `sys.modules`** — the test suite injects a fake
+2. **Mock via `sys.modules`** ï¿½ the test suite injects a fake
    `youtube_transcript_api` module into `sys.modules` so the
    lazy import inside `_fetch_transcript_yta` resolves to the
    mock. `monkeypatch.setattr` doesn't work on names that haven't
    been imported yet.
-3. **Pattern specificity matters** — the first cut of the
-   YouTube intent pattern matched `"ããßä ÊÍáá ÇáÜ dataset Ïå"`
-   (an EFI-OS request) because the verb `ÊÍáá` overlapped.
-   Fix: require a YouTube-context token (`ÇáÝíÏíæ`, `ÇáíæÊíæÈ`,
+3. **Pattern specificity matters** ï¿½ the first cut of the
+   YouTube intent pattern matched `"ï¿½ ï¿½ ï¿½ dataset ï¿½"`
+   (an EFI-OS request) because the verb `ï¿½` overlapped.
+   Fix: require a YouTube-context token (`ï¿½`, `ï¿½`,
    `youtube`, `yt`) immediately after the verb.
-4. **def parse_url("https://...")** — the regex needs to handle
+4. **def parse_url("https://...")** ï¿½ the regex needs to handle
    every shape YouTube has ever shipped. Shorts/embed/live all
    live under the same domain but with different path prefixes.
    The cleanest parser is: if host is youtu.be -> path is the ID;
@@ -325,12 +325,12 @@ turned both into a production-grade Python skill.
    or `/v/` -> the next path segment is the ID; else
    `/watch?v=...` from the query string.
 
-### 2026-08-03 — Live test against real YouTube + v1.2.x API compatibility
+### 2026-08-03 ï¿½ Live test against real YouTube + v1.2.x API compatibility
 
 After pushing the YouTube skill, we ran a real end-to-end test
 against a public Egyptian video
-(`https://www.youtube.com/watch?v=7M5XZ6rRw7k` — "ÚãáÊ ãÔÑæÚ íÏÎá
-950\$ ÇæÊæãÇÊíß ãä ÛíÑ ÎÈÑå", by "ÕÝÑ Úáí Çáíãíä", about earning
+(`https://www.youtube.com/watch?v=7M5XZ6rRw7k` ï¿½ "ï¿½ ï¿½ ï¿½
+950\$ ï¿½ ï¿½ ï¿½ ï¿½", by "ï¿½ ï¿½ ï¿½", about earning
 money online in 2026).
 
 #### Result
@@ -345,8 +345,8 @@ money online in 2026).
 
 The transcript pipeline produced **575 real Arabic caption
 segments, 4,372 words, 23.7 minutes of speech**. The heuristic
-summary correctly extracted the opening thesis: "ßËíÑ ãääÇ ßáäÇ Ýí
-ÇáÞäÇå åäÇ ãÍÊÇÌíä Çä ÇÍäÇ äÚãá ÝáæÓ Çæä áÇíä". Real data
+summary correctly extracted the opening thesis: "ï¿½ ï¿½ ï¿½ ï¿½
+ï¿½ ï¿½ ï¿½ ï¿½ ï¿½ ï¿½ ï¿½ ï¿½ ï¿½". Real data
 points surfaced: "25\$ free credit", "Pro plan 15\$/month".
 
 #### API compatibility fix
@@ -377,54 +377,54 @@ everywhere else: never trust the shape of an external library.
 
 ---
 
-## 2026-08-03 — Zero-loss fallback layer (offline_fallbacks)
+## 2026-08-03 ï¿½ Zero-loss fallback layer (offline_fallbacks)
 
 The user raised a hard constraint: **0% capability loss when no
 external API key is configured**. Until today, every key-dependent
 skill crashed with a clear error message when its key was missing
-(\ImageSkill needs OPENAI_API_KEY\, \Whisper requires a key\, …).
+(\ImageSkill needs OPENAI_API_KEY\, \Whisper requires a key\, ï¿½).
 Better than silent failure, but still a failure. The bot should
 remain *useful* in offline / demo / CI mode.
 
 ### What changed
 
-- **New file: \skills/offline_fallbacks.py\ (19 KB)** — single point
+- **New file: \skills/offline_fallbacks.py\ (19 KB)** ï¿½ single point
   of truth for offline alternatives. Every function is defensive
   (never raises) and returns a structured response. Public surface:
-  - \local_image(prompt, size, output_format)\ — Pillow procedural
+  - \local_image(prompt, size, output_format)\ ï¿½ Pillow procedural
     art. Deterministic via SHA-256(prompt). PNG/JPEG, ~3s for
-    1024×1024. Always produces a real file.
-  - \local_audio_info(source)\ — stdlib \wave\ + \fprobe\
+    1024ï¿½1024. Always produces a real file.
+  - \local_audio_info(source)\ ï¿½ stdlib \wave\ + \fprobe\
     fallback. Returns duration / channels / sample_rate / bitrate.
-  - \local_search(query, limit, timeout)\ — DuckDuckGo HTML scrape
+  - \local_search(query, limit, timeout)\ ï¿½ DuckDuckGo HTML scrape
     via stdlib \urllib\. Returns \[{title, url, snippet}]\.
-  - \local_text_complete(prompt, max_tokens)\ — rule-based
+  - \local_text_complete(prompt, max_tokens)\ ï¿½ rule-based
     summarise / list / question / echo. Not an LLM, but produces
     a sensible answer for structured prompts. Defensive coercion
     of non-str input.
-  - \local_transcribe_placeholder(source, duration)\ — structured
+  - \local_transcribe_placeholder(source, duration)\ ï¿½ structured
     \{text, language, duration, model, ok=False, fallback=True,
     audio_info, note}\. Mirrors the OpenAI Whisper response shape
     so callers don't branch.
 
-- **\skills/image_skill.py\** — when \OPENAI_API_KEY\ is missing,
+- **\skills/image_skill.py\** ï¿½ when \OPENAI_API_KEY\ is missing,
   route to \local_image\ instead of raising. When the key is set
   but the API call fails (timeout, 5xx, network), also fall back.
   Logs the reason for telemetry. Returns a real PNG.
 
-- **\skills/transcribe_skill.py\** — when \OPENAI_API_KEY\ is
+- **\skills/transcribe_skill.py\** ï¿½ when \OPENAI_API_KEY\ is
   missing, return \local_transcribe_placeholder\ with \ok=False\.
   When the audio is oversize, route to the same offline path.
 
-- **\	ests/test_offline_fallbacks.py\ (28 tests)** — covers
+- **\	ests/test_offline_fallbacks.py\ (28 tests)** ï¿½ covers
   PNG correctness, determinism, size enforcement, Arabic prompts,
-  speed (<5s for 256×256), audio metadata for path/URL/bytes,
+  speed (<5s for 256ï¿½256), audio metadata for path/URL/bytes,
   text completion for empty/summarise/list/Arabic/question/echo,
   transcription placeholder shape, and the never-raises contract
   for every function.
 
 - **Updated \	ests/test_image_skill.py\ and
-  \	ests/test_transcribe_skill.py\** — flipped the "no key"
+  \	ests/test_transcribe_skill.py\** ï¿½ flipped the "no key"
   tests from \pytest.raises\ to "returns offline fallback".
   The new contract is: \ok=False\ is acceptable; \aise\ is
   not.
@@ -458,11 +458,11 @@ remain *useful* in offline / demo / CI mode.
    never-raises contract is now testable.
 3. **Pillow procedural art is enough for previews.** The same prompt
    always produces the same image (SHA-256 seeded gradient). This
-   doubles as a cache key — repeat requests hit the same file on
+   doubles as a cache key ï¿½ repeat requests hit the same file on
    disk.
 4. **The audio metadata fallback is the most underrated one.** When
    Whisper is unavailable, returning \{duration: 23.7 min,
-   channels: 1, sample_rate: 16000}\ is genuinely useful — the user
+   channels: 1, sample_rate: 16000}\ is genuinely useful ï¿½ the user
    knows whether to expect 5 seconds or 5 hours of content.
 5. **The DDG HTML scrape already shipped with \web_search_skill\.
    No change needed.** The fallback was already there; today it
@@ -471,7 +471,7 @@ remain *useful* in offline / demo / CI mode.
 
 ---
 
-## 2026-08-03 — Multi-provider search chain (DDG -> Wikipedia)
+## 2026-08-03 ï¿½ Multi-provider search chain (DDG -> Wikipedia)
 
 After the offline fallback commit (\c46b92d\), the live DDG smoke
 test returned 0 results for every query. The 2026 DDG HTML endpoint
@@ -485,29 +485,29 @@ So we needed a second leg of the chain that works in 2026.
 
 ### What we tried
 
-- **DDG HTML** (legacy \html.duckduckgo.com/html/\) — blocked by
+- **DDG HTML** (legacy \html.duckduckgo.com/html/\) ï¿½ blocked by
   anomaly detector (12 KB of \"verification required\" HTML)
-- **DDG lite** (\lite.duckduckgo.com/lite/\) — same block
-- **Brave** (\search.brave.com/search\) — HTTP 429 too many requests
-- **Qwant API** — HTTP 403 forbidden
-- **Mojeek** — captcha (ALTCHA challenge) on the HTML endpoint
-- **Startpage** — Anubis challenge (heavy anti-bot)
-- **SearXNG (searx.be)** — returns HTML, not the JSON we asked for
-- **Bing** — not probed (would need user-agent work)
-- **Wikipedia REST** (\/w/api.php?action=query&list=search\) — **works**
+- **DDG lite** (\lite.duckduckgo.com/lite/\) ï¿½ same block
+- **Brave** (\search.brave.com/search\) ï¿½ HTTP 429 too many requests
+- **Qwant API** ï¿½ HTTP 403 forbidden
+- **Mojeek** ï¿½ captcha (ALTCHA challenge) on the HTML endpoint
+- **Startpage** ï¿½ Anubis challenge (heavy anti-bot)
+- **SearXNG (searx.be)** ï¿½ returns HTML, not the JSON we asked for
+- **Bing** ï¿½ not probed (would need user-agent work)
+- **Wikipedia REST** (\/w/api.php?action=query&list=search\) ï¿½ **works**
   Real results, no captcha, no key, JSON response, multilingual
   via \{lang}.wikipedia.org\
 
 ### What changed
 
 - \skills/offline_fallbacks.py\: \local_search\ is now a chain
-  - \_ddg_search()\ — first attempt, detects the anomaly page
+  - \_ddg_search()\ ï¿½ first attempt, detects the anomaly page
     (\nomaly-modal\ in body) and returns \[]\ cleanly
-  - \_wikipedia_search()\ — second attempt via MediaWiki
+  - \_wikipedia_search()\ ï¿½ second attempt via MediaWiki
     \ction=query&list=search\. Strips the
     \<span class=\"searchmatch\">\ HTML, builds a stable
     \wikipedia.org/wiki/Title\ URL
-  - \local_search()\ — tries each provider, returns the first
+  - \local_search()\ ï¿½ tries each provider, returns the first
     non-empty list, never raises
 - Each provider is a separate function so callers can pick a
   specific backend (e.g. web_search_skill can call
@@ -549,7 +549,7 @@ Verified: \git rev-parse HEAD\ = \7e97aaa34ee5be7c8296a72353793c40ff3dc490\.
    (people, places, languages, software, scientific concepts)
    and fails silently for ephemeral queries (weather, news,
    \"what is the best X in 2026\"). That's the right tradeoff
-   for an offline fallback — better to have 5 good results for
+   for an offline fallback ï¿½ better to have 5 good results for
    the things it knows than 0 spam results.
 5. **Don't remove the dead provider.** DDG might still work
    from whitelisted IPs or after cookies. The chain costs
@@ -557,10 +557,10 @@ Verified: \git rev-parse HEAD\ = \7e97aaa34ee5be7c8296a72353793c40ff3dc490\.
 
 ---
 
-## 2026-08-03 — Orca <-> Termux bidirectional bridge
+## 2026-08-03 ï¿½ Orca <-> Termux bidirectional bridge
 
-The user asked: *\"ÚÇíÒ Çáæßíá ÈÊÇÚì orca agent ÏÇÎá ÌíÊ åÈ íÊã ÇäÔÇÁ
-ÇÊãÊÉ Çæ ÌÓÑ ãÈÇÔÑ ÈíäÉ æÈíä termux in my desktop\"*. In other
+The user asked: *\"ï¿½ ï¿½ ï¿½ orca agent ï¿½ ï¿½ ï¿½ ï¿½ ï¿½
+ï¿½ ï¿½ ï¿½ ï¿½ ï¿½ ï¿½ termux in my desktop\"*. In other
 words: build an automation / direct bridge between the Orca
 Telegram bot and a phone (or desktop) running Termux.
 
@@ -591,7 +591,7 @@ with curl, ~1s typical latency).
 
 ### What changed
 
-- **\	ools/termux_server.py\ (17 KB)** — Orca-side FastAPI app:
+- **\	ools/termux_server.py\ (17 KB)** ï¿½ Orca-side FastAPI app:
   - Bearer-token auth (TERMUX_BRIDGE_TOKEN env var)
   - 7 HTTP endpoints: \/health\, \/pending\, \/command\,
     \/result\, \/result/{id}\, \/event\, \/events\, \/status\
@@ -601,7 +601,7 @@ with curl, ~1s typical latency).
   - \push_command()\ sync helper that the bot uses to dispatch
     a command and block-wait for the phone's reply
 
-- **\	ools/termux_bridge.py\ (19 KB)** — Phone-side daemon:
+- **\	ools/termux_bridge.py\ (19 KB)** ï¿½ Phone-side daemon:
   - Single-file Python, **stdlib only** (no FastAPI/pip on phone)
   - Polls Orca \/pending\ every N seconds (configurable)
   - 15 subcommands via Termux:API: battery, wifi, location,
@@ -612,28 +612,28 @@ with curl, ~1s typical latency).
   - \doctor\ subcommand to check termux-api installation
   - \exec\ subcommand to test subcommands locally
 
-- **\skills/termux_skill.py\ (12 KB)** — Telegram command surface:
+- **\skills/termux_skill.py\ (12 KB)** ï¿½ Telegram command surface:
   - 18 subcommands: battery, wifi, location, notify, toast,
     vibrate, speak, torch, share, clipboard, uptime, storage,
     wake, ping, run, status, setup, help
   - \cmd_termux(args, chat_id)\ entry point
   - Markdown formatting with 3800-char truncation
   - Friendly error messages with hints
-  - **Arabic/Egyptian synonym map** (\"ÈØÇÑíÉ\" -> \"battery\",
-    \"ßÔÇÝ\" -> \"torch\", etc.) for natural-language routing
+  - **Arabic/Egyptian synonym map** (\"ï¿½\" -> \"battery\",
+    \"ï¿½\" -> \"torch\", etc.) for natural-language routing
 
-- **\	elegram_bot/bot.py\** — wired \/termux\ (and alias \/phone\):
+- **\	elegram_bot/bot.py\** ï¿½ wired \/termux\ (and alias \/phone\):
   - \CommandHandler(\"termux\", self.cmd_termux)\
   - Added to \BotCommand\ list (Telegram menu)
   - Added to \SKILL_CATALOG\
   - \/start\ help text mentions the bridge
 
-- **\skills/intent_skill.py\** — added 14 new patterns for
+- **\skills/intent_skill.py\** ï¿½ added 14 new patterns for
   /termux (English + Egyptian), mapped via \_args_subcommand\
-  helper that strips trigger verbs (\"check my\", \"ÚÇíÒ ÇÚÑÝ\")
+  helper that strips trigger verbs (\"check my\", \"ï¿½ ï¿½\")
   and returns the rest
 
-- **\core/skills_data/termux_bridge.md\** — design doc with
+- **\core/skills_data/termux_bridge.md\** ï¿½ design doc with
   architecture, transport choice rationale, subcommand catalogue,
   error model, security model, latency budget
 
@@ -670,27 +670,27 @@ End-to-end test (all 7 steps passed in ~1.3s):
    bot restarts, is human-inspectable (\jq -c . data/termux_queue.jsonl\),
    adds zero new dependencies.
 4. **Lazy import of FastAPI in the skill.** The bot doesn't
-   pull in FastAPI at startup — only when /termux is first
+   pull in FastAPI at startup ï¿½ only when /termux is first
    called. Saves ~80ms on cold start and avoids breaking the
    bot if the bridge is not configured.
 5. **Defence-in-depth on the allow-list.** Both the bot AND
    the phone validate subcommands. The phone is the source of
-   truth — the bot's check is just for nicer error messages.
+   truth ï¿½ the bot's check is just for nicer error messages.
 6. **Mocked HTTP with \http.server.HTTPServer\.** Testing the
    daemon's poll loop is easy: spin up a BaseHTTPRequestHandler
    on 127.0.0.1, run the bridge in a thread for 0.5s, then
    assert the server received the expected requests.
 7. **Synonym map for NL->command routing.** Arabic users say
-   \"ÈØÇÑíÉ\" but the English subcommand is \attery\". A 30-line
+   \"ï¿½\" but the English subcommand is \attery\". A 30-line
    dict bridges the gap. Add more entries as new phrasings emerge.
-8. **Don't break \/status\ for general \"ÍÇáÉ\" queries.** The
-   new termux pattern required the phone suffix (\"ÇáãæÈÇíá\" /
-   \"ÊáíÝæäí\") — without it, \"Çíå ÍÇáÉ ÇáÓíÑÝÑ¿\" would be
+8. **Don't break \/status\ for general \"ï¿½\" queries.** The
+   new termux pattern required the phone suffix (\"ï¿½\" /
+   \"ï¿½\") ï¿½ without it, \"ï¿½ ï¿½ ï¿½Ñ¿\" would be
    misclassified as /termux.
 
 ---
 
-## 2026-08-03 — One-shot Windows installer (setup/)
+## 2026-08-03 ï¿½ One-shot Windows installer (setup/)
 
 The user asked to move the Orca Agent from this dev environment
 to their laptop (\smoha\: i7-6820HQ, 16 GB RAM, Win 10 Pro
@@ -732,8 +732,8 @@ iwr -useb https://raw.githubusercontent.com/hermasorca13-stack/Orca-Agent-Unifie
 
 1. **Em-dashes and smart quotes are footguns in PowerShell.**
    When we wrote the script with markdown-flavored em-dashes
-   (—), they got encoded as UTF-8 but the file was re-read
-   as Latin-1, producing mojibake (\â€"\). PowerShell 5.1
+   (ï¿½), they got encoded as UTF-8 but the file was re-read
+   as Latin-1, producing mojibake (\ï¿½"\). PowerShell 5.1
    sees this as a multi-byte token and refuses to parse the
    file (\The term 'X' is not recognized\).
    Fix: use ASCII hyphens (-) only in PowerShell scripts.
@@ -768,7 +768,7 @@ iwr -useb https://raw.githubusercontent.com/hermasorca13-stack/Orca-Agent-Unifie
 
 ---
 
-## 2026-08-03 — Zero-Loss Audit (pre-laptop-transfer verification)
+## 2026-08-03 ï¿½ Zero-Loss Audit (pre-laptop-transfer verification)
 
 Before transferring Orca Agent to the laptop, the user asked to
 verify with all means that there is 0% capability loss. We ran
@@ -795,9 +795,9 @@ Fix: added \pytest>=7.0\ and \pytest-asyncio>=0.21\ to
 
 ### Critical bug caught #2: mojibake in PowerShell scripts
 
-Em-dashes (—) and smart quotes (\'\\) written to PowerShell
+Em-dashes (ï¿½) and smart quotes (\'\\) written to PowerShell
 files got encoded as UTF-8 then re-read as Latin-1, producing
-mojibake (\â€"\). PowerShell 5.1 sees this as a multi-byte
+mojibake (\ï¿½"\). PowerShell 5.1 sees this as a multi-byte
 token and refuses to run the file (\The term 'X' is not
 recognized\). The \[Parser]::ParseFile()\ API missed it
 because the parser is more lenient than the runtime.
@@ -1040,3 +1040,26 @@ the 0x0D bytes.
 5. **When the user says "100% loss", they usually mean "I don't
    understand the size".** Always explain what they're looking
    at before assuming a real bug.
+
+
+---
+
+## 2026-08-26 â€” ORCA Max Mouny trading engine
+
+### What was added
+
+Added a self-contained `trading_bot/` package to the existing repository without deleting the established ORCA Agent implementation. The new package contains canonical market/order/fill/risk models, Paper execution, an optional CCXT sandbox/live adapter, technical indicators, pair validation, arbitrage and momentum signal generators, fail-closed risk gates, a durable kill switch, staged/hedged execution, JSONL audit logging with secret redaction, and a leakage-aware backtest utility.
+
+Added `.env.orca.example`, `Dockerfile.orca`, a standalone `run_orca_max_mouny.py` entrypoint, the Orca whale SVG asset, a complete operations document, and six dedicated tests expanded to cover staged paper execution, stale-data rejection, secret redaction, cross-exchange net edge, technical confirmations, and withdrawal-permission rejection.
+
+### Verification
+
+- `python3 -m compileall` â€” passed for the new package and Telegram compatibility layer.
+- `PYTHONPATH=. pytest -q tests/trading_bot` â€” **6 passed**.
+- `python3 -m trading_bot.cli.doctor` â€” `safe_default: true`, `syntax_errors: []`, `withdrawal_permissions: []`.
+- Paper runtime demonstration â€” **4 staged fills** written to the UTC JSONL audit log.
+- Full repository suite â€” **614 passed, 4 skipped, 3 failed**; the three failures are pre-existing external OpenAI quota/API tests (`DALL-E` and `Whisper`) and are unrelated to this trading addition. The initial Telegram collection mismatch was repaired additively through the existing adapter compatibility layer.
+
+### Security decisions
+
+Paper mode is the default. Sandbox keys are separate from production keys. Live mode requires explicit `ORCA_LIVE_CONFIRM=I_UNDERSTAND_ORCA_LIVE`, configured active-exchange credentials, and rejects any withdrawal permission. Runtime state and `.env.orca` are ignored by Git.

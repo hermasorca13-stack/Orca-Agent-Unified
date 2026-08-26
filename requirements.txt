@@ -56,3 +56,6 @@ pytest-asyncio>=0.21
 # httpx<0.28 is required by fastapi.testclient (TestClient); we
 # already pin httpx==0.25.2 at the top of this file.
 # FastAPI's TestClient also needs starlette (transitive dep of fastapi).
+
+# ORCA Max Mouny trading adapter; paper mode remains dependency-free at runtime.
+ccxt>=4.4.0

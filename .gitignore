@@ -74,3 +74,7 @@ data/*
 # dev/ scratch scripts (smoke tests, run helpers)
 .dev/
 
+# ORCA Max Mouny local credentials and runtime state
+.env.orca
+data/orca_max_mouny/
+
