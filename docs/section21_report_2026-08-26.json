@@ -1,0 +1,64 @@
+{
+  "data_source": "Binance public REST OHLCV",
+  "symbol": "BTC/USDT",
+  "interval": "1h",
+  "bars": 1000,
+  "first_timestamp": "2026-07-15T13:00:00+00:00",
+  "last_timestamp": "2026-08-26T04:00:00+00:00",
+  "returns": 999,
+  "alpha_candidates": 16,
+  "alpha_execution_eligible": 0,
+  "causal": {
+    "source": "btc_return_1h",
+    "target": "btc_return_2h",
+    "granger_source_to_target": 0.34224840412000346,
+    "granger_target_to_source": 0.00032229798339489246,
+    "transfer_entropy_source_to_target": 0.12013881958004362,
+    "transfer_entropy_target_to_source": 0.12210592379522785,
+    "direction": "btc_return_1h->btc_return_2h",
+    "economic_mechanism": "lagged_return_dependence_is_diagnostic_only",
+    "accepted": true
+  },
+  "tail_risk": {
+    "var": 0.004587349508339304,
+    "cvar": 0.007543718826097494,
+    "tail_mean": 0.005948062763869446,
+    "observations": 999,
+    "accepted": true
+  },
+  "stress": {
+    "scenarios": 24,
+    "worst_case_max_drawdown": 0.3234107871614277,
+    "all_stop_tightening_only": true
+  },
+  "contagion": {
+    "affected": [],
+    "exposure_multiplier": 1.0,
+    "action": "monitor"
+  },
+  "drift": {
+    "feature": "btc_return_1h",
+    "psi": 0.2655902526023813,
+    "jsd": 0.014257335120828794,
+    "warning": true,
+    "action": "feed_section20_weights_and_retirement_review"
+  },
+  "governance": {
+    "eligible_for_review": false,
+    "execution_eligible": false,
+    "reasons": [
+      "cpcv_failed",
+      "pbo_above_threshold",
+      "deflated_sharpe_failed",
+      "shadow_gate_failed",
+      "concept_drift_requires_section20_review"
+    ],
+    "action": "review_only_no_direct_live_authority"
+  },
+  "execution": {
+    "orders_submitted": 0,
+    "live_authority": false,
+    "keys_used": false
+  },
+  "disclosure": "Diagnostic verification only. No performance improvement, profitability, or Live readiness is claimed. Section 21 cannot authorize Live execution."
+}

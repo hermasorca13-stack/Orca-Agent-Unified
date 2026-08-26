@@ -54,7 +54,16 @@
 | `trading_bot/analytics/shadow.py` | بوابة التداول الظلي وكشف الانحراف |
 | `trading_bot/analytics/retirement.py` | تقاعد تشغيلي تراكمي قابل لإعادة التفعيل |
 | `trading_bot/risk/kelly.py` | Fractional Kelly مقيد بسقف المخاطر والتقلب |
+| `trading_bot/analytics/alpha_discovery.py` | اكتشاف مرشحي alpha بتعبيرات مقيدة، review-only |
+| `trading_bot/analytics/causal.py` | Granger-style وTransfer Entropy وآلية اقتصادية معلنة |
+| `trading_bot/analytics/online_experts.py` | مزيج خبراء Beta online وكشف نقاط التحول |
+| `trading_bot/analytics/stress_generator.py` | block bootstrap وضغط هبوطي محافظ؛ ليس TimeGAN |
+| `trading_bot/analytics/tail_risk.py` | CVaR وEVT tail diagnostics |
+| `trading_bot/analytics/contagion.py` | correlation/centrality وعدوى المنصات وتقليل التعرض |
+| `trading_bot/analytics/explainability.py` | permutation importance وPSI/JSD drift |
+| `trading_bot/analytics/governance21.py` | مراجعة مرشحين، Kill-Switch، ومنع Live authority |
 | `docs/SECTION20_IMPLEMENTATION.md` | مطابقة بنود القسم 20 ونتائج التحقق |
+| `docs/SECTION21_IMPLEMENTATION.md` | مطابقة بنود القسم 21 ونتيجة التحقق الواقعي |
 | `assets/orca_max_mouny/orca-whale.svg` | شعار حوت الأوركا بصيغة SVG |
 | `deploy/` | قالب Docker/systemd ونشر مستقل للمضيف الدائم |
 
@@ -72,6 +81,7 @@ python3 run_orca_max_mouny.py paper-demo
 PYTHONPATH=. python3 -m trading_bot.app paper-history
 PYTHONPATH=. python3 scripts/orca_meta_label_real.py
 PYTHONPATH=. python3 scripts/orca_optimize_real.py
+PYTHONPATH=. python3 scripts/orca_section21_real.py
 python3 -m trading_bot.cli.doctor
 pytest -q tests/trading_bot
 ```
@@ -91,6 +101,12 @@ pytest -q tests/trading_bot
 معايير القبول المستهدفة من وثيقة المتطلبات هي Sharpe أكبر من 2.0، وProfit Factor أكبر من 2.0، وMax Drawdown أقل من 20%، وWin Rate أكبر من 50%، مع اعتماد السجل الكامل وجميع الحسابات والإيداعات والسحوبات والرسوم والتمويل والانزلاق والتصفية عند احتساب الأداء. تحديث نموذج الإشارة يتم في مساحة staging ثم لا يصبح معتمدًا إلا بعد `approve(reviewer=...)`؛ ولا يملك سجل النموذج أي مسار لتعديل حدود المخاطر.
 
 تقرير البيانات الحقيقية المحفوظ في [`validation_report_2026-08-26.json`](validation_report_2026-08-26.json) استخدم 1000 شمعة BTC/USDT على إطار الساعة من Binance، وطبّق OOS و13 نافذة Walk-Forward واختبارات رسوم وانزلاق وMonte Carlo. تقرير التحسين المحفوظ في [`optimization_report_2026-08-26.json`](optimization_report_2026-08-26.json) بحث في معاملات المتوسطات وعتبات الإشارة على العينة الداخلية فقط ثم اختبرها خارج العينة؛ أفضل SMA حقق OOS Win Rate = 44.78% وProfit Factor = 1.024 وSharpe = 0.118، بينما نتيجة التقاطع ذات Win Rate = 100% اعتمدت على صفقتين فقط خارج العينة ولذلك رُفضت ببوابة الحد الأدنى. النتيجة الحالية **مرفوضة** لبوابة القبول، ولا يُسمح باعتبار أي من هذه الاستراتيجيات معتمدة أو نقلها إلى تداول حقيقي.
+
+### تحقق القسم 21
+
+شغّل `scripts/orca_section21_real.py` على 1000 شمعة BTC/USDT عامة من Binance. نتج 16 مرشحًا عازلًا، صفر مؤهل للتنفيذ، CVaR 95% = 0.7544%، وأسوأ سحب في 24 سيناريو ضغط = 32.3411%. ظهر تحذير PSI = 0.2656، ورفضت الحوكمة المرشح بسبب فشل CPCV/PBO/DSR وshadow. لم تُرسل أوامر ولم تُستخدم مفاتيح. التفاصيل في [`SECTION21_IMPLEMENTATION.md`](SECTION21_IMPLEMENTATION.md) و[`section21_report_2026-08-26.json`](section21_report_2026-08-26.json).
+
+القسم 21 لا يخفف حدود المخاطر، ولا يملك سلطة Live مباشرة، وأي تغير هيكلي يحتاج مراجعة. مفاتيح Sandbox وLive، فحص منصات المستخدم، وتشغيل Windows الفعلي ما تزال خارج هذه البيئة.
 
 ## مراجع التنفيذ
 

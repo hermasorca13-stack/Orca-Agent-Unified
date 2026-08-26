@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from trading_bot.analytics.execution_feedback import ExecutionFeedback
+from trading_bot.analytics.governance21 import GovernanceDecision, Section21Governance
 from trading_bot.analytics.regime import RegimeSnapshot
 from trading_bot.analytics.retirement import RetirementDecision, evaluate as evaluate_retirement
 from trading_bot.analytics.shadow import ShadowGate, compare_shadow_to_backtest
@@ -17,6 +18,7 @@ class AdaptiveState:
     retired: dict[str, RetirementDecision] = field(default_factory=dict)
     last_regime: RegimeSnapshot | None = None
     last_shadow_gate: ShadowGate | None = None
+    last_section21_decision: GovernanceDecision | None = None
 
 
 class Section20Layer:
@@ -24,6 +26,7 @@ class Section20Layer:
         self.allocator = allocator or DynamicAllocator()
         self.feedback = feedback or ExecutionFeedback()
         self.state = AdaptiveState()
+        self.section21_governance = Section21Governance()
 
     def on_closed_trade(self, *, exchange: str, symbol: str, expected_price: float, fill, strategy: str, window: PerformanceWindow, base_cost: CostEstimate) -> tuple[CostEstimate, tuple[WeightDecision, ...]]:
         self.feedback.record(exchange=exchange, symbol=symbol, expected_price=expected_price, fill=fill)
@@ -34,6 +37,11 @@ class Section20Layer:
 
     def set_regime(self, snapshot: RegimeSnapshot) -> None:
         self.state.last_regime = snapshot
+
+    def section21_gate(self, **checks) -> GovernanceDecision:
+        decision = self.section21_governance.evaluate(**checks)
+        self.state.last_section21_decision = decision
+        return decision
 
     def shadow_gate(self, *, shadow_win_rate: float, backtest_win_rate: float, shadow_pnl: float, backtest_pnl: float, shadow_trades: int) -> ShadowGate:
         gate = compare_shadow_to_backtest(shadow_win_rate=shadow_win_rate, backtest_win_rate=backtest_win_rate, shadow_pnl=shadow_pnl, backtest_pnl=backtest_pnl, shadow_trades=shadow_trades)

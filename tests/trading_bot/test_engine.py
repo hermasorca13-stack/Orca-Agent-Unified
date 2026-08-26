@@ -14,6 +14,14 @@ from trading_bot.analytics.weighting import DynamicAllocator, PerformanceWindow
 from trading_bot.analytics.bias_control import deflated_sharpe_ratio, probability_backtest_overfitting, purged_combinatorial_folds
 from trading_bot.analytics.execution_feedback import ExecutionFeedback
 from trading_bot.analytics.section20 import Section20Layer
+from trading_bot.analytics.alpha_discovery import evolve
+from trading_bot.analytics.causal import validate_causality
+from trading_bot.analytics.tail_risk import cvar, evt_tail_loss, report as tail_risk_report
+from trading_bot.analytics.contagion import ContagionGraph
+from trading_bot.analytics.online_experts import OnlineMixture
+from trading_bot.analytics.stress_generator import StressGenerator
+from trading_bot.analytics.explainability import drift_report, permutation_importance
+from trading_bot.analytics.governance21 import Section21Governance
 from trading_bot.analytics.shadow import compare_shadow_to_backtest, drift_action
 from trading_bot.analytics.retirement import evaluate as retirement_evaluate
 from trading_bot.risk.kelly import confidence_volatility_size
@@ -86,6 +94,69 @@ def test_validation_tools_run_without_future_data():
     assert "wide_spread_net_pnl" in stress_suite(frame, signal_fn)
 
 
+def test_section21_governance_is_review_only_and_kill_switch_bound(tmp_path):
+    kill = KillSwitch(tmp_path / "kill.json")
+    governance = Section21Governance(kill)
+    decision = governance.evaluate(causal_pass=True, cpcv_pass=True, pbo=0.01, dsr=0.5, shadow_pass=True, tail_pass=True)
+    assert decision.eligible_for_review is True
+    assert decision.execution_eligible is False
+    governance.enforce_halt()
+    assert governance.halt_if_kill_switch() is True
+
+
+def test_section21_explainability_and_drift_are_review_inputs():
+    from sklearn.tree import DecisionTreeClassifier
+    X = pd.DataFrame({"a": [0, 0, 1, 1, 0, 1], "b": [0, 1, 0, 1, 0, 1]})
+    y = [0, 0, 1, 1, 0, 1]
+    model = DecisionTreeClassifier(max_depth=2, random_state=21).fit(X, y)
+    importance = permutation_importance(model, X, y, ["a", "b"], repeats=2)
+    assert set(importance) == {"a", "b"}
+    drift = drift_report([0, 0, 0, 1, 1, 1], [10, 10, 11, 12, 12, 13], "a")
+    assert drift.warning is True
+    assert "section20" in drift.action
+
+
+def test_section21_stress_generator_is_downside_only():
+    scenarios = StressGenerator(seed=21, block_size=3).generate([0.01, -0.02, 0.005, -0.01, 0.002, -0.03] * 4, scenarios=5, length=24)
+    assert len(scenarios) == 5
+    assert all(s.stop_tightening_required for s in scenarios)
+    assert all(s.max_drawdown >= 0.0 for s in scenarios)
+
+
+def test_section21_online_experts_update_and_detect_shift():
+    mixture = OnlineMixture(("tree", "statistical"), min_history=6, changepoint_z=1.0)
+    for _ in range(4):
+        mixture.update({"tree": True, "statistical": False})
+    for _ in range(4):
+        mixture.update({"tree": False, "statistical": True})
+    assert 0.0 <= mixture.predict({"tree": 0.8, "statistical": 0.2}) <= 1.0
+    assert mixture.changepoint().score >= 0.0
+
+
+def test_section21_contagion_graph_only_reduces_exposure():
+    graph = ContagionGraph(correlation_threshold=0.5, stress_threshold=2.0, reduction=0.5)
+    assessment = graph.assess({"venue_a": [3.0, 3.2, 3.1], "venue_b": [3.1, 3.0, 3.3], "venue_c": [0.1, 0.2, 0.1]})
+    assert assessment.exposure_multiplier <= 1.0
+    assert assessment.action in ("reduce_exposure_and_prioritize_liquidity_exit", "monitor")
+    assert set(graph.liquidity_exit_order(assessment)).issubset(set(assessment.venues))
+
+
+def test_section21_tail_risk_metrics_are_conservative():
+    returns = [0.01, 0.005, -0.002, 0.004, -0.003, 0.006, -0.01, 0.002, 0.003, -0.004] * 5
+    assert cvar(returns) >= 0.0
+    assert evt_tail_loss(returns) >= cvar(returns)
+    assert tail_risk_report(returns).accepted is True
+
+
+def test_section21_alpha_candidates_are_unvalidated_by_default():
+    frame = pd.DataFrame({"close": [100 + i * 0.01 for i in range(100)], "volume": [1000 + (i % 5) for i in range(100)], "return_1": 0.001, "return_5": 0.005, "volatility": 0.01, "funding_rate": 0.0, "spread_bps": 1.0})
+    candidates = evolve(frame, generations=2, population_size=8)
+    assert candidates and all(not candidate.execution_eligible for candidate in candidates)
+    series = pd.Series([i * 0.1 + (i % 3) for i in range(100)])
+    causal = validate_causality(series.shift(1).fillna(0), series, source_name="source", target_name="target", economic_mechanism="lead-lag test")
+    assert causal.direction in ("source->target", "target->source", "undetermined")
+
+
 def test_section20_layer_updates_feedback_and_shadow_state():
     layer = Section20Layer()
     fill = Fill("id", "paper", "BTC/USDT", Side.BUY, 1.0, 100.10, 0.0, "USD")
@@ -93,6 +164,9 @@ def test_section20_layer_updates_feedback_and_shadow_state():
     assert cost.slippage > 0.0 and decisions
     gate = layer.shadow_gate(shadow_win_rate=0.5, backtest_win_rate=0.52, shadow_pnl=10, backtest_pnl=10, shadow_trades=30)
     assert gate.accepted is True
+    section21 = layer.section21_gate(causal_pass=False, cpcv_pass=False, pbo=1.0, dsr=-1.0, shadow_pass=False, tail_pass=True)
+    assert section21.execution_eligible is False
+    assert layer.state.last_section21_decision is section21
 
 
 def test_shadow_retirement_and_kelly_gates_are_conservative():
