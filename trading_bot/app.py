@@ -15,6 +15,7 @@ from trading_bot.config import ConfigurationError, load_settings
 from trading_bot.execution.engine import ExecutionEngine, ExecutionPlan
 from trading_bot.models import CostEstimate, MarketQuote, RiskSnapshot, Side, TradingMode
 from trading_bot.risk.gates import MarketContext, RiskEngine
+from trading_bot.risk.kill_switch import KillSwitch
 from trading_bot.storage.audit import AuditLog
 from trading_bot.strategies.technical import technical_signal
 
@@ -61,6 +62,7 @@ def paper_demo() -> int:
         raise ConfigurationError("paper-demo requires ORCA_TRADING_MODE=paper")
     exchange = PaperExchange()
     audit = AuditLog(settings.audit_log)
+    kill_switch = KillSwitch(settings.state_dir / "kill.json")
     risk = RiskEngine(settings)
     execution = ExecutionEngine({"paper": exchange}, audit)
     index = pd.date_range(end=datetime.now(timezone.utc), periods=260, freq="h")
@@ -79,10 +81,12 @@ def paper_demo() -> int:
     gate = risk.trade_gate(signal, context, snapshot, costs)
     audit.write("risk_gate", gate)
     if not gate.allowed:
+        if gate.code == "EMERGENCY_STOP":
+            kill_switch.trigger("risk_gate:" + ";".join(gate.reasons), close_positions=True)
         print(f"REJECTED {gate.code}: {','.join(gate.reasons)}")
         return 0
     amount = risk.position_size(snapshot.equity, abs(quote.mid - (signal.stop_price or quote.mid)), quote.mid, context.atr_pct)
-    adaptive = _adaptive_paper_gate(Section20Layer(), audit, signal, quote, amount)
+    adaptive = _adaptive_paper_gate(Section20Layer(audit=audit, kill_switch=kill_switch), audit, signal, quote, amount)
     if not adaptive.allowed_after_prior_gates or adaptive.order_fraction <= 0.0:
         print(f"REJECTED {adaptive.reason}")
         return 0
@@ -102,6 +106,7 @@ def paper_history_demo() -> int:
     frame = frame.set_index("timestamp")
     signal = technical_signal(frame, "BTC/USDT")
     audit = AuditLog(settings.audit_log)
+    kill_switch = KillSwitch(settings.state_dir / "kill.json")
     if signal is None:
         audit.write("signal_rejected", {"reason": "no_three_factor_signal", "source": "Binance historical OHLCV"})
         print({"mode": "paper", "action": "NO_SIGNAL", "bars": len(frame), "source": "Binance historical OHLCV"})
@@ -117,10 +122,12 @@ def paper_history_demo() -> int:
     gate = risk.trade_gate(signal, MarketContext(), snapshot, costs)
     audit.write("risk_gate", gate)
     if not gate.allowed:
+        if gate.code == "EMERGENCY_STOP":
+            kill_switch.trigger("risk_gate:" + ";".join(gate.reasons), close_positions=True)
         print({"mode": "paper", "action": "REJECTED", "code": gate.code, "reasons": gate.reasons})
         return 0
     amount = risk.position_size(snapshot.equity, max(abs(quote.mid - (signal.stop_price or quote.mid)), quote.mid * 0.005), quote.mid, 0.01)
-    adaptive = _adaptive_paper_gate(Section20Layer(), audit, signal, quote, amount)
+    adaptive = _adaptive_paper_gate(Section20Layer(audit=audit, kill_switch=kill_switch), audit, signal, quote, amount)
     if not adaptive.allowed_after_prior_gates or adaptive.order_fraction <= 0.0:
         print({"mode": "paper", "action": "REJECTED", "code": adaptive.reason})
         return 0
@@ -141,6 +148,7 @@ def paper_live_demo() -> int:
     signal = technical_signal(frame, "BTC/USDT")
     quote = provider.fetch_quote("BTC/USDT")
     audit = AuditLog(settings.audit_log)
+    kill_switch = KillSwitch(settings.state_dir / "kill.json")
     audit.write("paper_live_snapshot", {"quote": quote, "bars": len(frame)})
     if signal is None:
         audit.write("signal_rejected", {"reason": "no_three_factor_signal", "symbol": quote.symbol})
@@ -154,10 +162,12 @@ def paper_live_demo() -> int:
     gate = risk.trade_gate(signal, MarketContext(), snapshot, costs)
     audit.write("risk_gate", gate)
     if not gate.allowed:
+        if gate.code == "EMERGENCY_STOP":
+            kill_switch.trigger("risk_gate:" + ";".join(gate.reasons), close_positions=True)
         print({"mode": "paper", "action": "REJECTED", "code": gate.code, "reasons": gate.reasons})
         return 0
     amount = risk.position_size(snapshot.equity, abs(quote.mid - (signal.stop_price or quote.mid)), quote.mid, 0.01)
-    adaptive = _adaptive_paper_gate(Section20Layer(), audit, signal, quote, amount)
+    adaptive = _adaptive_paper_gate(Section20Layer(audit=audit, kill_switch=kill_switch), audit, signal, quote, amount)
     if not adaptive.allowed_after_prior_gates or adaptive.order_fraction <= 0.0:
         print({"mode": "paper", "action": "REJECTED", "code": adaptive.reason})
         return 0

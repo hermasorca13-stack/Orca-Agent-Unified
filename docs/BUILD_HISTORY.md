@@ -35,3 +35,6 @@
 
 | 2026-08-26 | تدقيق تشغيلي نهائي | كُشف وأُغلق ربط `app.py` الفعلي بالأقسام 20–24 قبل PaperExchange، وأضيف اعتماد صريح داخل `ExecutionPlan` يرفض أي استدعاء مباشر غير معتمد. تحقق `paper-demo` و`paper-history` بأربع تعبئات ورقية لكل منهما، ورفض `paper-live` بسبب latency. |
 | 2026-08-26 | نتائج التدقيق | 41 اختبار ORCA ناجحًا، و651 اختبار regression ناجحًا مع 4 متجاوزة و3 مستبعدة، و`doctor safe_default=true`، وPaper جاهز، وSandbox/Live غير متحققين دون حسابات المستخدم. التقرير الكامل في `docs/OPERATIONAL_AUDIT_2026-08-26.md`. |
+
+| 2026-08-26 | إصلاح تشغيلي نهائي للأقسام 20–24 | مرّر `app.py` Kill-Switch دائمًا إلى Section20Layer/Section23Layer، وفعّل `kill.json` تلقائيًا عند `EMERGENCY_STOP`. اختبار Paper-live الواقعي رُفض بسبب `api_latency_exceeded` وكتب حالة halt محفوظة؛ اختبار persisted Kill-Switch منع Section20–24. |
+| 2026-08-26 | التحقق النهائي للأمان والتشغيل | 42 اختبار ORCA ناجحًا، 652 اختبار regression ناجحًا، 4 متجاوزة، 3 مستبعدة، 7 تحذيرات غير فاشلة؛ `compileall` و`git diff --check` ناجحان. صفر مفاتيح وصفر أوامر حقيقية. |

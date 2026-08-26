@@ -1,6 +1,7 @@
 # تقرير التدقيق الهندسي والتشغيلي والأكاديمي — ORCA Max Mouny
 
-**نطاق التدقيق:** المستودع `hermasorca13-stack/Orca-Agent-Unified` حتى التغييرات الحالية المرشحة للتثبيت بعد commit `fe23d5c`. يفرق هذا التقرير بين وجود مكوّن برمجي، استدعائه من مسار التشغيل، والتحقق الخارجي الفعلي.
+**نطاق التدقيق:** المستودع `hermasorca13-stack/Orca-Agent-Unified` حتى التغييرات الحالية المرشحة للتثبيت بعد commit `d531ae1`.
+ يفرق هذا التقرير بين وجود مكوّن برمجي، استدعائه من مسار التشغيل، والتحقق الخارجي الفعلي.
 
 ## الحكم التنفيذي
 
@@ -11,11 +12,11 @@
 | مجال الحكم | النتيجة | الدليل |
 |---|---|---|
 | Paper runtime | **متحقق محليًا** | `app.py`, `PaperExchange`, تشغيل الأوامر الثلاثة |
-| Section20–24 runtime wiring | **مطبق فعليًا في Paper** | `_adaptive_paper_gate` في مسارات `paper-demo`, `paper-history`, `paper-live`، ثم `Section20Layer.section24_context` و`section23_execution` |
+| Section20–24 runtime wiring | **مطبق فعليًا في Paper** | `_adaptive_paper_gate` في مسارات `paper-demo`, `paper-history`, `paper-live`، ثم `Section20Layer.section24_context` و`section23_execution` مع Kill-Switch دائم |
 | Defense in depth | **مطبق** | `ExecutionPlan.approved` ورفض `PermissionError` قبل adapter |
 | Sandbox account | **غير متحقق** | لا مفاتيح أو حساب مستخدم في البيئة |
 | Live trading | **غير مفعل** | لا مسار Live CLI مكتمل ولا مفتاح ولا تأكيد مستخدم |
-| Kill-Switch | **متحقق كحاجز** | `paper-live` رُفض عند تجاوز latency |
+| Kill-Switch | **متحقق كحاجز دائم** | `paper-live` رُفض عند تجاوز latency وكتب `kill.json`؛ اختبار persisted state منع Section20–24 |
 | جودة البيانات | **متحققة تشخيصيًا** | Binance العام ومصادر 23/24، مع رفض التأخير أو فشل المصدر |
 | الأداء المالي | **غير مثبت** | لا توجد دعوى Win Rate أو ربح أو Sharpe جديد |
 
@@ -45,13 +46,13 @@
 | `paper-demo` | 4 fills ورقية متدرجة |
 | `paper-history` | 260 شمعة Binance عامة و4 fills داخل PaperExchange |
 | `paper-live` | رفض بـ`EMERGENCY_STOP` بسبب latency |
-| اختبارات ORCA | 41 ناجحًا، 7 تحذيرات غير فاشلة |
-| Regression بعد تعديلات التدقيق | 651 ناجحًا، 4 متجاوزة، 3 مستبعدة |
+| اختبارات ORCA | 42 ناجحًا، 7 تحذيرات غير فاشلة |
+| Regression بعد تعديلات التدقيق السابقة | 651 ناجحًا، 4 متجاوزة، 3 مستبعدة؛ إعادة regression النهائية بعد الإصلاح قيد الإتمام |
 | `compileall` و`git diff --check` | ناجحان بعد آخر فحص |
 
 ## الملاحظات الحرجة التي عولجت
 
-كان `Section20Layer` يجمع الأقسام 21–24، لكن `app.py` كان يستدعي `RiskEngine` ثم `ExecutionEngine` مباشرة. عولج ذلك بإدخال `_adaptive_paper_gate` في مسارات Paper الثلاثة، وبحفظ قرار القسم 24 وتطبيق حارس القسم 23 قبل بناء خطة التنفيذ.
+كان `Section20Layer` يجمع الأقسام 21–24، لكن `app.py` كان يستدعي `RiskEngine` ثم `ExecutionEngine` مباشرة. عولج ذلك بإدخال `_adaptive_paper_gate` في مسارات Paper الثلاثة، وبحفظ قرار القسم 24 وتطبيق حارس القسم 23 قبل بناء خطة التنفيذ. كما أصبح Kill-Switch الدائم يمرر حالته إلى Section20–24، ويُفعل من app عند `EMERGENCY_STOP`.
 
 وكان `ExecutionEngine` يقبل خطة تنفيذ عادية إذا استُدعي مباشرة. عولج ذلك بحقل `approved=False` افتراضيًا؛ أي استدعاء غير معتمد يُسجل في AuditLog ويرفع `PermissionError` قبل الوصول إلى adapter. لا يستطيع هذا الحقل وحده منح Live authority؛ يجب أن يأتي بعد البوابات السابقة، وهو مستخدم حاليًا في Paper فقط.
 

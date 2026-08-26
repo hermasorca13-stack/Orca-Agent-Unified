@@ -38,6 +38,7 @@ from trading_bot.ops.capability_catalog import capability_summary, find_capabili
 from trading_bot.analytics.shadow import compare_shadow_to_backtest, drift_action
 from trading_bot.analytics.retirement import evaluate as retirement_evaluate
 from trading_bot.risk.kelly import confidence_volatility_size
+from trading_bot.risk.kill_switch import KillSwitch
 from trading_bot.data.hub import MarketDataHub
 from trading_bot.storage.market_store import MarketStore
 from trading_bot.strategies.arbitrage import cross_exchange_signal
@@ -172,6 +173,15 @@ def test_section24_high_impact_event_blocks_new_risk_and_halt_is_stronger():
     toxicity = vpin([100 + (i % 2) * 0.1 for i in range(40)], [10.0] * 40)
     blocked = section20.section23_execution(prior_gates_allowed=True, toxicity=toxicity, venues=[VenueQuote("a", 1000, 2, 0.9, 10)], required_notional=100)
     assert blocked.allowed_after_prior_gates is False and blocked.order_fraction == 0.0
+
+
+def test_persisted_kill_switch_blocks_section20_to_24_context(tmp_path):
+    switch = KillSwitch(tmp_path / "kill.json")
+    switch.trigger("audit_test", close_positions=True)
+    section20 = Section20Layer(kill_switch=switch)
+    context = section20.section24_context(now=datetime(2026, 8, 26, 12, 0, tzinfo=timezone.utc))
+    assert context.allow_new_risk is False
+    assert context.lock_reason == "section24_halted"
 
 
 def test_gap_closure_readiness_keeps_live_slot_optional_and_closed():

@@ -13,6 +13,8 @@ from trading_bot.analytics.retirement import RetirementDecision, evaluate as eva
 from trading_bot.analytics.shadow import ShadowGate, compare_shadow_to_backtest
 from trading_bot.analytics.weighting import DynamicAllocator, PerformanceWindow, WeightDecision
 from trading_bot.models import CostEstimate
+from trading_bot.risk.kill_switch import KillSwitch
+from trading_bot.storage.audit import AuditLog
 
 
 @dataclass
@@ -28,13 +30,14 @@ class AdaptiveState:
 
 
 class Section20Layer:
-    def __init__(self, *, allocator: DynamicAllocator | None = None, feedback: ExecutionFeedback | None = None):
+    def __init__(self, *, allocator: DynamicAllocator | None = None, feedback: ExecutionFeedback | None = None, audit: AuditLog | None = None, kill_switch: KillSwitch | None = None):
         self.allocator = allocator or DynamicAllocator()
         self.feedback = feedback or ExecutionFeedback()
         self.state = AdaptiveState()
         self.section21_governance = Section21Governance()
         self.section22 = Section22Layer()
-        self.section23 = Section23Layer()
+        self.kill_switch = kill_switch
+        self.section23 = Section23Layer(audit=audit, kill_switch=kill_switch)
         self.section24 = Section24Layer()
 
     def on_closed_trade(self, *, exchange: str, symbol: str, expected_price: float, fill, strategy: str, window: PerformanceWindow, base_cost: CostEstimate, section22_features: tuple[float, ...] | list[float] | None = None, realized_pnl: float | None = None, risk_budget: float | None = None, expected_edge: float | None = None, network_stress: bool = False) -> tuple[CostEstimate, tuple[WeightDecision, ...]]:
@@ -50,6 +53,8 @@ class Section20Layer:
         self.state.last_regime = snapshot
 
     def section24_context(self, *, now=None, currency: str = "USD", event_lock_minutes: int = 30) -> EventRiskDecision:
+        if self.kill_switch and self.kill_switch.status().get("halted", False):
+            self.section24.halt()
         decision = self.section24.assess(now=now, currency=currency, event_lock_minutes=event_lock_minutes)
         self.state.last_section24_decision = decision
         return decision
@@ -69,6 +74,11 @@ class Section20Layer:
         result = self.section22.on_trade_closed(features=features, pnl=pnl, risk_budget=risk_budget, expected_edge=expected_edge, network_stress=network_stress)
         self.state.last_section22_trade = result
         return result
+
+    def halt(self, reason: str = "section20_kill_switch") -> dict:
+        self.section24.halt()
+        self.section23.halt(reason)
+        return self.kill_switch.status() if self.kill_switch else {"halted": True, "reason": reason}
 
     def section21_gate(self, **checks) -> GovernanceDecision:
         decision = self.section21_governance.evaluate(**checks)
