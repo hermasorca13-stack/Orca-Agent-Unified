@@ -1055,10 +1055,11 @@ Added `.env.orca.example`, `Dockerfile.orca`, a standalone `run_orca_max_mouny.p
 ### Verification
 
 - `python3 -m compileall` — passed for the new package and Telegram compatibility layer.
-- `PYTHONPATH=. pytest -q tests/trading_bot` — **8 passed**.
+- `PYTHONPATH=. pytest -q tests/trading_bot` — **13 passed**.
 - `python3 -m trading_bot.cli.doctor` — `safe_default: true`, `syntax_errors: []`, `withdrawal_permissions: []`.
 - Paper runtime demonstration — **4 staged fills** written to the UTC JSONL audit log.
-- Full repository suite with the three external quota tests deselected — **618 passed, 4 skipped, 3 deselected**. The three deselected failures are pre-existing OpenAI quota/API tests (`DALL-E` and `Whisper`) caused by an exhausted external account quota, not by the trading addition. The initial Telegram collection mismatch was repaired additively through the existing adapter compatibility layer.
+- Full repository suite with the three external quota tests deselected — **623 passed, 4 skipped, 3 deselected**. The three deselected failures are pre-existing OpenAI quota/API tests (`DALL-E` and `Whisper`) caused by an exhausted external account quota, not by the trading addition. The initial Telegram collection mismatch was repaired additively through the existing adapter compatibility layer.
+- Public market-data verification — Binance Spot ticker, order book, 1m OHLCV, Futures funding, Futures open interest, and Fear & Greed context were fetched without sending orders. The persistent worker recorded the data and correctly triggered Kill-Switch when measured latency exceeded 500ms.
 
 ### Security decisions
 

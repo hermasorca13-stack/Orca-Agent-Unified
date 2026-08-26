@@ -29,16 +29,23 @@
 | `trading_bot/config/settings.py` | إعدادات موحدة وتحقق fail-closed من الحدود والصلاحيات |
 | `trading_bot/adapters/paper.py` | تنفيذ Paper محلي حقيقي لأغراض التطوير والاختبار |
 | `trading_bot/adapters/ccxt_adapter.py` | موصل اختياري لـCCXT للـsandbox/live |
+| `trading_bot/data/providers.py` | بيانات Binance العامة عبر REST وWebSocket مع قياس latency |
+| `trading_bot/data/context.py` | Fear & Greed وسعر BTC ومتوسط 200 أسبوع من مصادر عامة |
+| `trading_bot/data/hub.py` | تنسيق اللقطات وفحص freshness والبطء |
 | `trading_bot/analytics/indicators.py` | EMA، RSI، Stochastic RSI، ATR، Heikin Ashi، Elder Weight Oscillator، Beta |
 | `trading_bot/analytics/statistics.py` | OLS، اختبار ADF-style، الثبات، التكامل المشترك، الارتباط، والـZ-Score |
 | `trading_bot/strategies/technical.py` | نموذج إشارة الزخم والفلاتر الفنية مع ثلاث تأكيدات على الأقل |
 | `trading_bot/strategies/arbitrage.py` | Cross-Exchange Arbitrage وStatistical/Pair Arbitrage بعد التكاليف |
 | `trading_bot/risk/gates.py` | بوابات التكلفة والبيانات والسيولة والأحداث والهامش والخسارة |
 | `trading_bot/risk/kill_switch.py` | إيقاف طارئ دائم عند فشل البيانات أو API أو الحدود |
+| `trading_bot/risk/policy.py` | احتياطي المحفظة، التعرض، حظر المارتينجال والمراكز غير المحوطة |
+| `trading_bot/monitoring.py` | مراقبة تشغيلية تربط حالات الفشل بـKill-Switch |
+| `trading_bot/storage/market_store.py` | تخزين SQLite لبيانات السوق وقرارات النظام |
 | `trading_bot/execution/engine.py` | دخول متدرج، تحوط شبه متزامن، وخروج مرحلي |
 | `trading_bot/storage/audit.py` | سجل JSONL دائم لكل قرار وأمر وتنفيذ وسبب رفض |
 | `trading_bot/analytics/backtest.py` | اختبار رجعي زمني بلا look-ahead مع رسوم وانزلاق |
 | `assets/orca_max_mouny/orca-whale.svg` | شعار حوت الأوركا بصيغة SVG |
+| `deploy/` | قالب Docker/systemd ونشر مستقل للمضيف الدائم |
 
 ## التشغيل
 

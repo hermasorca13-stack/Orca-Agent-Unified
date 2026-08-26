@@ -6,11 +6,18 @@ import pytest
 from trading_bot.adapters.paper import PaperExchange
 from trading_bot.analytics.backtest import run_backtest
 from trading_bot.analytics.statistics import validate_pair
+from trading_bot.analytics.validation import monte_carlo_max_drawdown, out_of_sample, stress_suite, walk_forward
+from trading_bot.data.hub import MarketDataHub
+from trading_bot.storage.market_store import MarketStore
 from trading_bot.strategies.arbitrage import cross_exchange_signal
 from trading_bot.config.settings import ConfigurationError, ExchangeCredentials, Settings
+from trading_bot.cycle import TradingCycle
 from trading_bot.execution.engine import ExecutionEngine, ExecutionPlan
 from trading_bot.models import CostEstimate, MarketQuote, RiskSnapshot, Side
 from trading_bot.risk.gates import MarketContext, RiskEngine
+from trading_bot.risk.policy import PortfolioPolicy, PortfolioState
+from trading_bot.risk.kill_switch import KillSwitch
+from trading_bot.monitoring import OperationalMonitor
 from trading_bot.storage.audit import AuditLog
 from trading_bot.strategies.technical import technical_signal
 
@@ -40,6 +47,59 @@ def test_risk_gate_fails_closed_on_stale_data(tmp_path):
     result = engine.trade_gate(signal, MarketContext(), snapshot, CostEstimate(4, 1, 1, 0, 0, 0, 0))
     assert not result.allowed
     assert "data_age_exceeded" in result.reasons
+
+
+def test_trading_cycle_records_approved_decision(tmp_path):
+    settings = Settings(state_dir=tmp_path, audit_log=tmp_path / "audit.jsonl", database=tmp_path / "db.sqlite3")
+    audit = AuditLog(settings.audit_log)
+    from trading_bot.models import Signal
+    signal = Signal("test", "BTC/USDT", Side.BUY, 1.0, 10.0, None, (), 1.0, ("a", "b", "c"))
+    result = TradingCycle(PaperExchange(), RiskEngine(settings), audit).evaluate(
+        "BTC/USDT", lambda symbol: signal, RiskSnapshot(100_000, 100_000, 0, 4, 0, 0, 0, 0, 0, 0, 10, 1), CostEstimate(1, 1, 1, 0, 0, 0, 0)
+    )
+    assert result.allowed
+    assert "risk_gate" in (tmp_path / "audit.jsonl").read_text()
+
+
+def test_validation_tools_run_without_future_data():
+    index = pd.date_range("2025-01-01", periods=600, freq="D", tz="UTC")
+    close = pd.Series([100 + i * 0.1 + ((i % 9) - 4) * 0.2 for i in range(600)], index=index)
+    frame = pd.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close + 0.2, "volume": 1_000_000.0}, index=index)
+    signal_fn = lambda history: 1.0
+    in_sample, out_sample = out_of_sample(frame, signal_fn)
+    assert in_sample.trades > 0 and out_sample.trades > 0
+    assert len(walk_forward(frame, signal_fn, train_size=220, test_size=40)) > 0
+    assert monte_carlo_max_drawdown([0.01, -0.005, 0.008, -0.004]) >= 0.0
+    assert "wide_spread_net_pnl" in stress_suite(frame, signal_fn)
+
+
+def test_operational_monitor_triggers_kill_switch(tmp_path):
+    settings = Settings(state_dir=tmp_path, audit_log=tmp_path / "audit.jsonl", database=tmp_path / "db.sqlite3")
+    audit = AuditLog(settings.audit_log)
+    kill = KillSwitch(tmp_path / "kill.json")
+    monitor = OperationalMonitor(RiskEngine(settings), kill, audit)
+    snapshot = RiskSnapshot(100_000, 100_000, 0, 4, 0, 0, 0, 0, 0, 4.0, 700.0, 1.0)
+    result = monitor.check(snapshot)
+    assert not result.ok
+    assert kill.status()["halted"] is True
+
+
+def test_portfolio_policy_blocks_reserve_and_martingale(tmp_path):
+    settings = Settings(state_dir=tmp_path, audit_log=tmp_path / "audit.jsonl", database=tmp_path / "db.sqlite3")
+    policy = PortfolioPolicy(settings)
+    state = PortfolioState(100_000, 0.10, 50_000, 1_000, 1_000, 0.0, 0.0, 0)
+    assert "external_stablecoin_reserve_below_20_percent" in policy.violations(state)
+    assert policy.prohibit_martingale(True, 2.0, 1.0)
+
+
+def test_market_store_persists_quotes(tmp_path):
+    store = MarketStore(tmp_path / "market.sqlite3")
+    quote = MarketQuote("paper", "BTC/USDT", 100.0, 101.0)
+    store.record_quote(quote)
+    rows = store.recent_quotes("paper", "BTC/USDT")
+    assert len(rows) == 1
+    assert rows[0]["bid"] == 100.0
+    store.close()
 
 
 def test_audit_redacts_secret_fields(tmp_path):

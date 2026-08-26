@@ -146,3 +146,19 @@ python orca.py doctor    # engineering checks
 - **Doctor self-check**: detects duplicate filenames, oversized files, broken imports
 - **Library-first**: skills import battle-tested libraries (PyGithub, yfinance, pycoingecko, qrcode, pyshorteners, openai/whisper, python-docx, openpyxl) — no raw API duplication
 - **Voice-first**: voice notes are the primary input (per MASTER_PROMPT); `transcribe_skill` turns any voice message into text and feeds downstream skills (summarize, translate, save, search).
+
+
+## ORCA Max Mouny Trading Engine
+
+The repository now includes `trading_bot/`, a market-neutral quantitative engine with paper execution, optional CCXT sandbox/live connectivity, Binance REST/WebSocket market-data providers, SQLite storage, risk gates, kill-switch monitoring, staged execution, arbitrage and momentum signals, backtest/OOS/Walk-Forward/Monte Carlo utilities, and a deployable systemd template. See [`docs/ORCA_MAX_MOUNY.md`](docs/ORCA_MAX_MOUNY.md) and [`docs/IMPLEMENTATION_GAP_MATRIX.md`](docs/IMPLEMENTATION_GAP_MATRIX.md).
+
+```bash
+cp .env.orca.example .env.orca
+set -a; . .env.orca; set +a
+python3 run_orca_max_mouny.py status
+python3 run_orca_max_mouny.py paper-demo
+PYTHONPATH=. python3 -m trading_bot.daemon --once
+PYTHONPATH=. pytest -q tests/trading_bot
+```
+
+`paper` is the default mode. Credentials are environment-only, withdrawal permissions are rejected, and live mode requires an explicit external confirmation variable.

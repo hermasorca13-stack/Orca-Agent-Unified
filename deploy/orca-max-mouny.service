@@ -1,0 +1,22 @@
+[Unit]
+Description=ORCA Max Mouny Trading Engine
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=orca
+Group=orca
+WorkingDirectory=/opt/orca-agent-unified
+EnvironmentFile=/etc/orca/orca.env
+ExecStart=/opt/orca-agent-unified/.venv/bin/python -m trading_bot.daemon --symbols BTC/USDT --interval 10
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/orca-agent-unified/data
+
+[Install]
+WantedBy=multi-user.target
