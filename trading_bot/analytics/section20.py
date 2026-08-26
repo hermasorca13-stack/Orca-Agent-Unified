@@ -1,12 +1,13 @@
 """Unified adaptive layer for section 20 feedback and promotion gates."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from trading_bot.analytics.execution_feedback import ExecutionFeedback
 from trading_bot.analytics.governance21 import GovernanceDecision, Section21Governance
 from trading_bot.analytics.section22 import Section22Layer, Section22TradeResult
 from trading_bot.analytics.section23 import Section23ExecutionDecision, Section23Layer
+from trading_bot.analytics.section24 import EventRiskDecision, Section24Layer
 from trading_bot.analytics.regime import RegimeSnapshot
 from trading_bot.analytics.retirement import RetirementDecision, evaluate as evaluate_retirement
 from trading_bot.analytics.shadow import ShadowGate, compare_shadow_to_backtest
@@ -23,6 +24,7 @@ class AdaptiveState:
     last_section21_decision: GovernanceDecision | None = None
     last_section22_trade: Section22TradeResult | None = None
     last_section23_decision: Section23ExecutionDecision | None = None
+    last_section24_decision: EventRiskDecision | None = None
 
 
 class Section20Layer:
@@ -33,6 +35,7 @@ class Section20Layer:
         self.section21_governance = Section21Governance()
         self.section22 = Section22Layer()
         self.section23 = Section23Layer()
+        self.section24 = Section24Layer()
 
     def on_closed_trade(self, *, exchange: str, symbol: str, expected_price: float, fill, strategy: str, window: PerformanceWindow, base_cost: CostEstimate, section22_features: tuple[float, ...] | list[float] | None = None, realized_pnl: float | None = None, risk_budget: float | None = None, expected_edge: float | None = None, network_stress: bool = False) -> tuple[CostEstimate, tuple[WeightDecision, ...]]:
         if section22_features is not None and realized_pnl is not None and risk_budget is not None and expected_edge is not None:
@@ -46,8 +49,19 @@ class Section20Layer:
     def set_regime(self, snapshot: RegimeSnapshot) -> None:
         self.state.last_regime = snapshot
 
+    def section24_context(self, *, now=None, currency: str = "USD", event_lock_minutes: int = 30) -> EventRiskDecision:
+        decision = self.section24.assess(now=now, currency=currency, event_lock_minutes=event_lock_minutes)
+        self.state.last_section24_decision = decision
+        return decision
+
     def section23_execution(self, **checks) -> Section23ExecutionDecision:
         decision = self.section23.execution_decision(**checks)
+        event_context = self.state.last_section24_decision
+        if event_context is not None:
+            if not event_context.allow_new_risk:
+                decision = replace(decision, allowed_after_prior_gates=False, order_fraction=0.0, reason=f"section24:{event_context.lock_reason}")
+            else:
+                decision = replace(decision, order_fraction=min(decision.order_fraction, event_context.risk_multiplier))
         self.state.last_section23_decision = decision
         return decision
 

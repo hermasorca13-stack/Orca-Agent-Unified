@@ -1,0 +1,182 @@
+{
+  "as_of": "2026-08-26T17:35:35.133752+00:00",
+  "data_source": "Google News RSS public fallback",
+  "query": "bitcoin OR cryptocurrency OR bitcoin OR criptomonedas",
+  "articles": 35,
+  "source_error": "JSONDecodeError",
+  "languages": {
+    "ar": 5,
+    "es": 5,
+    "fr": 5,
+    "de": 5,
+    "tr": 5,
+    "ru": 5,
+    "ja": 5
+  },
+  "source_countries": {
+    "EG": 5,
+    "ES": 5,
+    "FR": 5,
+    "DE": 5,
+    "TR": 5,
+    "RU": 5,
+    "JP": 5
+  },
+  "sentiment": {
+    "mean_score": 0.0,
+    "min_score": -1.0,
+    "max_score": 1.0,
+    "method": "GDELT tone when available plus language lexicon; context-only, not causal"
+  },
+  "market_sessions": [
+    {
+      "name": "sydney",
+      "local_time": "2026-08-27T03:35:35.133752+10:00",
+      "utc_offset": "+1000",
+      "open": false,
+      "currencies": [
+        "AUD",
+        "NZD"
+      ],
+      "reason": "closed_or_weekend"
+    },
+    {
+      "name": "tokyo",
+      "local_time": "2026-08-27T02:35:35.133752+09:00",
+      "utc_offset": "+0900",
+      "open": false,
+      "currencies": [
+        "JPY"
+      ],
+      "reason": "closed_or_weekend"
+    },
+    {
+      "name": "london",
+      "local_time": "2026-08-26T18:35:35.133752+01:00",
+      "utc_offset": "+0100",
+      "open": false,
+      "currencies": [
+        "GBP",
+        "EUR",
+        "CHF"
+      ],
+      "reason": "closed_or_weekend"
+    },
+    {
+      "name": "new_york",
+      "local_time": "2026-08-26T13:35:35.133752-04:00",
+      "utc_offset": "-0400",
+      "open": true,
+      "currencies": [
+        "USD",
+        "CAD"
+      ],
+      "reason": "open"
+    }
+  ],
+  "official_calendar_sources": [
+    {
+      "name": "Federal Reserve FOMC",
+      "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+      "status": "source_registered; event-specific ingestion requires calendar parser"
+    }
+  ],
+  "article_samples": [
+    {
+      "title": "\u0645\u062d\u0644\u0644\u0648\u0646: \u0623\u0643\u0628\u0631 \u0642\u0641\u0632\u0629 \u0644\u0628\u064a\u062a\u0643\u0648\u064a\u0646 \u0645\u0646\u0630 2023 \u0642\u062f \u062a\u0645\u0647\u062f \u0644\u0645\u0643\u0627\u0633\u0628 \u062c\u062f\u064a\u062f\u0629 - \u0627\u0644\u0639\u0631\u0628\u064a\u0629",
+      "url": "https://news.google.com/rss/articles/CBMiywNBVV95cUxNMjRBY3VoZC13Zm9jVjc5TGt0WEdubl9OSVJuVFZmeGx4eEZwdm05VjN0THBiX1RaMW1DT01oaF9zZ2NyamJDX2JKcUxVdklzNlpUYnRzblcxWmRJWTRMYVVkemRWTzZCcFJpUS1FWU1rbkh4OVU3SGxuSW5EdUk1MTZJSDlrUHpDaExRanBFSG1oOVVyMUZvTzRHUzhRdnRqcm16YUxaR2sxRGRzcHNSSG1CcWJINWk4WHhQQklRdWF5QlBxdk4tZlhiaWlmR2FRTTRJSmppSVBlRnRseFBEQ2htck9ab2VPVFh6cjhCempDZl9zQjhNQjhMUWxlRVBxX3B6bUFwcmlVRWszdjhlT3RLaUJYWS10Q2NPV0pyOGxDZFlrM1VZMmhMeDlacEQydzFHN0daaGRadFh2clhrUG5LdTBmaWYtUy1OdmlvRnR2VnI2bElsYnpDUnRucUdvUEIzaUIzX3JkelhtaDlCOHJPZnR6SXkzNTlITVI2MEFaek1pMzRaT25lX1JGYmtLVnA0X0VRcGRDQktKVl9iNXlRMG4ydGxLc0xoeXlZdFNiSVNVQjA0ZWFFcTNrNm9QWkF6dmdFWl92RlXSAdADQVVfeXFMUEI4WW5iTlpPR3ZvTnYwTmdWYUlBSm5nTUZpTjlqVWROQUU3REVnOFdjZU5TYVFiMlM0eFJPcUFmMEZ0YklQbGpEWUd6ZWxIbWlMaVFSVWdCdWFIOGJsZ1llMHNaR3RMOWxBcjd6QzZQaXhjbU5lT2RILWozSEtSZkoxWTFodktRYVFQS2F6UXIwN1lIVXBjX1ByTllHcVNjakN4dHMybDZPd2xkdXh3ck9zZ1hCVk41Si1DUzFzWnh2WF9yN0pzeV9wNlNwb3ptN2drYXpSbDNFY0ZfYkdpbW9oZV9fd3JDN05YeFpycXlMenc4cThKV1VIbXZrY2s5dzVjS1E0Z09BSndnTGJpME5TOEtHVFJpSkJXMERLNUlUaThjdFpZVEFEV05ia0RZS0VSVU50MzdWX244cE5tNFJDeXp4UWoxeFYxenRPSmd1TUE2Z0FLYkQ1aml0blpmRE1aU24yQzEyM0JGa1pWQnVoU091bUJYcE9kak03aU9iNkVKc3hEMnZQdUVULW1sYmZPbENaZEF0elltN0xVUlVvRzBtMVlLOGRDNEc1WXRBamdEMW8tYXNHT0wzbDdrNVVXaWhJMHZMNmpYeEZOLVg?oc=5",
+      "language": "ar",
+      "region": "EG",
+      "published_at": "2026-08-26 05:13:00+00:00",
+      "source": "google_news_rss",
+      "retrieved_at": "2026-08-26 17:35:59.128226+00:00"
+    },
+    {
+      "title": "\u062a\u0634\u0648\u063a\u0627\u0646\u064a \u0645\u0646 \u0628\u0631\u0646\u0634\u062a\u0627\u064a\u0646 \u064a\u062a\u0648\u0642\u0639 \u0648\u0635\u0648\u0644 \u0628\u064a\u062a\u0643\u0648\u064a\u0646 \u0625\u0644\u0649 300,000 \u062f\u0648\u0644\u0627\u0631 \u0628\u0646\u0647\u0627\u064a\u0629 2029 - Investing.com",
+      "url": "https://news.google.com/rss/articles/CBMic0FVX3lxTE1wUTRMb3VQYTlCeFZKWHVYWUYtWTdIdDRHLWlZX1psSVJVYlRKb1RGQmd2SE5tbVdMUUg1RW1EemJnQ2lReXpBSmlpbWtoWHZwREdqQ2tfN1JxdjFCS2pYUkJ1MzZnQVRDOHVNNVoyaWlDNHM?oc=5",
+      "language": "ar",
+      "region": "EG",
+      "published_at": "2026-08-26 10:25:00+00:00",
+      "source": "google_news_rss",
+      "retrieved_at": "2026-08-26 17:35:59.128226+00:00"
+    },
+    {
+      "title": "\u0628\u064a\u062a\u0643\u0648\u064a\u0646 \u062a\u0647\u0628\u0637 \u062f\u0648\u0646 80 \u0623\u0644\u0641 \u062f\u0648\u0644\u0627\u0631.. \u0647\u0644 \u062e\u0633\u0631 \u0627\u0644\u062b\u064a\u0631\u0627\u0646 \u0627\u0644\u0631\u0647\u0627\u0646\u061f - \u0625\u0631\u0645 \u0628\u0632\u0646\u0633",
+      "url": "https://news.google.com/rss/articles/CBMiYEFVX3lxTE1RRzlfMkRzSHowQ3h4WEhOVEVVV0dMLXdYSVFfMnotTXppRUZ3UGlPb1hSR3RzcW5mUHRESkR1RWh5eXY5aXFfNVR2NFJOQkcxOWhTMnIxUlJCTlRMV0Ryag?oc=5",
+      "language": "ar",
+      "region": "EG",
+      "published_at": "2026-08-26 06:44:16+00:00",
+      "source": "google_news_rss",
+      "retrieved_at": "2026-08-26 17:35:59.128226+00:00"
+    },
+    {
+      "title": "Bitcoin Breaks $78,000, Ethereum Rises 0.9% - \u0635\u062d\u064a\u0641\u0629 \u0645\u0627\u0644",
+      "url": "https://news.google.com/rss/articles/CBMiaEFVX3lxTFBTVXlfSGI5YTBJM05QQ05mRV91NFpaRWM1THRMUmFZb3JaMTZtcUw3TGN3TXhfRkV0SjROcVhTN1JuVlBHb2ljNDdXZy03aVVUSktlYjdRRDdmWUFXODMwMGZLcVZJbmJk?oc=5",
+      "language": "ar",
+      "region": "EG",
+      "published_at": "2026-08-24 13:15:15+00:00",
+      "source": "google_news_rss",
+      "retrieved_at": "2026-08-26 17:35:59.128226+00:00"
+    },
+    {
+      "title": "\u062a\u0648\u0642\u0639\u0627\u062a \u0627\u0644\u0628\u064a\u062a\u0643\u0648\u064a\u0646 \u0641\u064a \u0646\u0647\u0627\u064a\u0629 \u0627\u0644\u0639\u0627\u0645\u060c 100 \u0623\u0644\u0641 \u062f\u0648\u0644\u0627\u0631 \u0642\u062f \u062a\u0643\u0648\u0646 \u0645\u0646\u062e\u0641\u0636\u0629 \u0644\u0644\u063a\u0627\u064a\u0629 - idnfinancials.com",
+      "url": "https://news.google.com/rss/articles/CBMingRBVV95cUxOYkZaQXJTdWgzZmFWaGZOYkZRTmlDNkFXOEU0c0o5UkpGWFZIQkc5eHVBQUV3aS1SOG1kT2o2M0lUemlNR2Nkb05iNmZQWnExYlM0VHhXSzZsaFV0ZDFXeU9CdVN1d1BoVGh6NjdLcmxCQk9UOXZkbE1aOTNxRXRldklqQ2l6ZEoxZzUyekVvTzhMVUdWNnZTdW1HXzc4bkt2YkRHRUxxckVscTVZb1VYV0RvSkdYaXRKc3JTMGlSS0ZJNFZCejBwdU9obm0xLWctUDBrdFNESWxpV0pJWUJvOW5MOGp4V0tWNUVaZjBuN21CcFBZN284YXNRUzZoYnAwcGx5czhGdUQtTmp5QWlsR0R2R196amQ0N05qUFVjcUlWejRKN0ZackhJTHhaZGVGYU1BSWJJazRiNTNCTmNibjAyQTZfcDAwSnh4Vk5Lb0JCcWpDNElKU0VtR3ZaNWY2ZGhCbERtd2d2ODkzMkFMVnJpZFFxT0lNdjBSWVg5LXlSU0FDblhnZk4ydVlCc01pcHJMWWcxVE5kQm81b3FSWUdEZUs1S0VzUXo4em9wQ3dNdVVHWDFtNkVBSjA4RTFtaTNYOWJxY1dVajFSY2ZSWHNHYV9WY0dDM080aHRLMG9jblN2azNuY1F4cl8yUEtoNDRERnYxczFCT25EOFhIYkdhLWpyT014ejJlT3ZNSGVpcVMwRmFsbktfTVExZw?oc=5",
+      "language": "ar",
+      "region": "EG",
+      "published_at": "2026-08-26 02:00:00+00:00",
+      "source": "google_news_rss",
+      "retrieved_at": "2026-08-26 17:35:59.128226+00:00"
+    },
+    {
+      "title": "\u00bfEst\u00e1n los alcistas de BTC, ETH y XRP acumulando impulso para la pr\u00f3xima subida? - FXStreet",
+      "url": "https://news.google.com/rss/articles/CBMi2wFBVV95cUxOUXRuSENTcEd5RmFXNlFiNXJCbmgzQmM1U0pHM0pILTI5SElMQWdVSGczNWZlbFJyWS1RcHpZZFRLeUNTLTA1blNJM2N0X3lsMS1qcDhsbU1YTW9HVVNNbjJrMmtpdWlGbmp3bVBaRWU1d2JTanp6bldLeVMxTTRjQjhtUGN4RmYwTDNLR2c1TVdTX1lVZjlWSGFzc0ZYcm5XeE91dm5HamZjeTZnanFKQ1d1RUFfb0xveE05eXpkMjN3eDd3aVBtTXhEaGVyXzZHUVN5ZWtDYWpOd0HSAeABQVVfeXFMTmVxaEVPa1MwVDVUOHdpNGJBa0lkYVN1S0NCUGxZTVFXTFlxWF96eWdoZlNvWWJkcFBXTWVGU3JBS0Z0VElnbVNldzNHMXY1TEVEcG4zOHFQMkh6OWJqNG9wZ3dodWVVMTVRcFNvMnFtZnpxTG9uMmU4dE9UZ1VzT3ZsNVpXQjRZMUF1R1d0LUxnaXhKbjcyY09NM2ZBak5UZThxUW9reTN0d3JyemFFVTluenEwbTJPeWdTdW9EeHljRGU0c3RaX1VfRnRQWFUyd0REYnktZUl2OG9nNC11UEE?oc=5",
+      "language": "es",
+      "region": "ES",
+      "published_at": "2026-08-26 10:12:26+00:00",
+      "source": "google_news_rss",
+      "retrieved_at": "2026-08-26 17:35:59.128226+00:00"
+    },
+    {
+      "title": "Por qu\u00e9 BlackRock monopoliza el mercado de ETFs de Bitcoin y Ethereum - iProUP",
+      "url": "https://news.google.com/rss/articles/CBMitgFBVV95cUxNb20ybDI1SHVGcjlWUHRPYUhoUVd1Mjhtbi02YnlGX1c5UnhiZS10cTk4XzkxcmtIWlozV2RRUEk4OXc4U3c4RDlSRzY0VEJaa0oyazFTQW9MSkE5cnJQZk9UcUxZUDZXTy1ud3AzYUFVcWJoenprUTk0OFo4NEs5NUkxZHpRNkJxRnlTa2lLdGQyM01VNElSdHU0WWpKVUJsaWMtd181VUhkZDVkUGdERWhkdzhqd9IBuwFBVV95cUxNZEZRRnppa2tOOEc2VmRFMWxaeFBKLThYdTcyYko4bjMwTmV5WjZ2RVRhNDFmdnBzSmM4cF9YNWdjamtBcE9HbHF4Nm04UWY4YmtEallncXdqSjEwWlQ5N2JUenJwRXdUMGZJbXVNQjc4YkMxSnZtR1N3bDJFSlBLSFNTckM2UlZJYWFfbVQ1YlZYRVo5TXhpX2Y1bzN6MFpzS0ZPUUs0WnpXUHVtTVA5dkJiWVZuUXpxN3V3?oc=5",
+      "language": "es",
+      "region": "ES",
+      "published_at": "2026-08-25 17:35:00+00:00",
+      "source": "google_news_rss",
+      "retrieved_at": "2026-08-26 17:35:59.128226+00:00"
+    },
+    {
+      "title": "BTC 1D \u2014 d\u00eda 56 de 60: retroceso hacia 74-72K para BINANCE:BTCUSDT de XuxiSanchez - TradingView",
+      "url": "https://news.google.com/rss/articles/CBMiX0FVX3lxTE91VHVlMm1YSjFJOURFQ0d1WTU2X18zYzRWejhmcC0wdjBjd3BjMHRZYVBEUmxZTnR6QWloQzJWdnZKd0Z1bE5WZnBvS2RQYkwyLXAyWnZuZGptR2ZuNkV3?oc=5",
+      "language": "es",
+      "region": "ES",
+      "published_at": "2026-08-26 03:31:56+00:00",
+      "source": "google_news_rss",
+      "retrieved_at": "2026-08-26 17:35:59.128226+00:00"
+    },
+    {
+      "title": "\u00bfFin del bear market cripto? Bitcoin y Ethereum suben m\u00e1s de un 20% - Merca2.es",
+      "url": "https://news.google.com/rss/articles/CBMiiAFBVV95cUxPVzB5eVlPakg2dlVzODE0cU15R0dsZUo1M1Njd3BlMGtNUEpDcTdpS3dEc0xtMHJZT05TdjZLNDN1UkFIcHhLdWdZVGYyTzBNZE5Fd0pqbVJCNzV2Z21pNlBjSVlkbjRRZ2wtZU5IZ3cwd2lpV2dfNlZBSUNqZ25ob0ZsbkJGblVt?oc=5",
+      "language": "es",
+      "region": "ES",
+      "published_at": "2026-08-24 08:16:18+00:00",
+      "source": "google_news_rss",
+      "retrieved_at": "2026-08-26 17:35:59.128226+00:00"
+    },
+    {
+      "title": "Falla en Ledger pod\u00eda hacer firmar una transacci\u00f3n de Ethereum distinta a la mostrada - CriptoNoticias",
+      "url": "https://news.google.com/rss/articles/CBMiowFBVV95cUxOSXFTRXdLVi1BQ05aTWZlMkNQQ3FHX202cF9FZ21nUVRUZV9fRjRVVXNIR1dXRFphTUZraV9oZ0VHMjVTQnJ5LTMtRG5FRzZETUxXazhPN1lJODIwX1Q2VGNoN2tlYm5BcW5Yb1JVeUpZUVhkUVlnYVVnaU9fdl8wckQzQkxqdDZINExxSG9aQ1BlcWpWTkJ6Q1F1UXhsbl8zUG1Z?oc=5",
+      "language": "es",
+      "region": "ES",
+      "published_at": "2026-08-23 19:26:00+00:00",
+      "source": "google_news_rss",
+      "retrieved_at": "2026-08-26 17:35:59.128226+00:00"
+    }
+  ],
+  "execution": {
+    "orders_submitted": 0,
+    "keys_used": false,
+    "live_authority": false
+  },
+  "disclosure": "News coverage and tone are media-derived context. They are not verified facts, causal estimates, or a trading signal; unsupported languages use a neutral fallback. If GDELT failed, the report explicitly identifies the RSS fallback."
+}

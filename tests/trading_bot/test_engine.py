@@ -33,6 +33,7 @@ from trading_bot.analytics.data_quality23 import DataQualityGate, SourcePriority
 from trading_bot.analytics.rollout23 import CapitalRamp, CodeReleaseGovernance
 from trading_bot.analytics.compliance23 import LegalComplianceGate, check_mica_counterparty
 from trading_bot.ops.readiness import check_readiness
+from trading_bot.analytics.section24 import EconomicEvent, MarketClock, MultilingualSentiment, Section24Layer
 from trading_bot.analytics.shadow import compare_shadow_to_backtest, drift_action
 from trading_bot.analytics.retirement import evaluate as retirement_evaluate
 from trading_bot.risk.kelly import confidence_volatility_size
@@ -136,6 +137,31 @@ def test_section23_greeks_capacity_and_data_quality_guards():
     assert execution.allowed_after_prior_gates is False
     assert execution.reason == "legal_compliance_hold"
     assert section20.state.last_section23_decision is execution
+
+
+def test_section24_sessions_and_multilingual_sentiment_are_context_only():
+    clock = MarketClock()
+    states = clock.states(datetime(2026, 8, 26, 12, 0, tzinfo=timezone.utc))
+    assert states and all(state.local_time for state in states)
+    sentiment = MultilingualSentiment()
+    assert sentiment.analyze("نمو قوي ودعم", language="ar").score > 0
+    assert sentiment.analyze("war crisis and inflation", language="en").score < 0
+
+
+def test_section24_high_impact_event_blocks_new_risk_and_halt_is_stronger():
+    layer = Section24Layer()
+    event = EconomicEvent("e1", "test", "war crisis", "geopolitics", "high", datetime(2026, 8, 26, 12, 0, tzinfo=timezone.utc), "global", "en", "https://example.invalid/event", datetime(2026, 8, 26, 11, 0, tzinfo=timezone.utc))
+    layer.add_event(event)
+    decision = layer.assess(now=datetime(2026, 8, 26, 11, 45, tzinfo=timezone.utc), currency="USD")
+    assert decision.allow_new_risk is False and decision.risk_multiplier <= 0.5
+    layer.halt()
+    assert layer.assess(now=datetime(2026, 8, 26, 11, 45, tzinfo=timezone.utc)).allow_new_risk is False
+    section20 = Section20Layer()
+    section20.section24.add_event(event)
+    section20.section24_context(now=datetime(2026, 8, 26, 11, 45, tzinfo=timezone.utc), currency="USD")
+    toxicity = vpin([100 + (i % 2) * 0.1 for i in range(40)], [10.0] * 40)
+    blocked = section20.section23_execution(prior_gates_allowed=True, toxicity=toxicity, venues=[VenueQuote("a", 1000, 2, 0.9, 10)], required_notional=100)
+    assert blocked.allowed_after_prior_gates is False and blocked.order_fraction == 0.0
 
 
 def test_gap_closure_readiness_keeps_live_slot_optional_and_closed():
