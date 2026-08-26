@@ -34,6 +34,7 @@ from trading_bot.analytics.rollout23 import CapitalRamp, CodeReleaseGovernance
 from trading_bot.analytics.compliance23 import LegalComplianceGate, check_mica_counterparty
 from trading_bot.ops.readiness import check_readiness
 from trading_bot.analytics.section24 import EconomicEvent, MarketClock, MultilingualSentiment, Section24Layer
+from trading_bot.ops.capability_catalog import capability_summary, find_capabilities, validate_catalog
 from trading_bot.analytics.shadow import compare_shadow_to_backtest, drift_action
 from trading_bot.analytics.retirement import evaluate as retirement_evaluate
 from trading_bot.risk.kelly import confidence_volatility_size
@@ -137,6 +138,13 @@ def test_section23_greeks_capacity_and_data_quality_guards():
     assert execution.allowed_after_prior_gates is False
     assert execution.reason == "legal_compliance_hold"
     assert section20.state.last_section23_decision is execution
+
+
+def test_capability_catalog_is_evidence_backed_and_non_executing():
+    validate_catalog()
+    summary = capability_summary()
+    assert summary["guardrail"] >= 1
+    assert find_capabilities("paper")
 
 
 def test_section24_sessions_and_multilingual_sentiment_are_context_only():

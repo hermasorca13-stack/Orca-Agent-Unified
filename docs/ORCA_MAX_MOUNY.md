@@ -88,6 +88,8 @@
 | `trading_bot/analytics/rss24.py` | RSS عام متعدد اللغات كمسار fallback معلن |
 | `scripts/orca_section24_real.py` | تحقق القسم 24 ببيانات أحداث وجلسات عامة دون أوامر |
 | `docs/SECTION24_IMPLEMENTATION.md` | مطابقة متطلبات القسم 24 ونتيجة التحقق الواقعي |
+| `trading_bot/ops/capability_catalog.py` | سجل قدرات قائم على الدليل ومنع التكرار، غير تنفيذي |
+| `docs/CAPABILITY_CATALOG.md` | نتائج مقارنة ملف TypeScript بما هو موجود واستبعاد العناصر المكررة |
 
 ## التشغيل
 
@@ -109,6 +111,7 @@ PYTHONPATH=. python3 scripts/orca_section23_real.py
 PYTHONPATH=. python3 scripts/orca_cross_source_real.py
 PYTHONPATH=. python3 -m trading_bot.ops.readiness --json
 PYTHONPATH=. python3 scripts/orca_section24_real.py
+PYTHONPATH=. python3 -m trading_bot.ops.readiness --json
 python3 -m trading_bot.cli.doctor
 pytest -q tests/trading_bot
 ```
@@ -137,7 +140,7 @@ pytest -q tests/trading_bot
 
 مفاتيح Sandbox وLive، فحص منصات المستخدم، وتشغيل Windows الفعلي ما تزال خارج هذه البيئة.
 
-أضيف فحص جاهزية موحّد (`trading_bot.ops.readiness`) يعرض Paper وSandbox وLive دون طباعة الأسرار، ويعتبر خانة Live اختيارية ومغلقة افتراضيًا. أضيف القسم 24 كطبقة سياق للأحداث والجلسات واللغات؛ لا يحول المشاعر أو الأخبار إلى أوامر ولا يخفف المخاطر.
+أضيف فحص جاهزية موحّد (`trading_bot.ops.readiness`) يعرض Paper وSandbox وLive دون طباعة الأسرار، ويعتبر خانة Live اختيارية ومغلقة افتراضيًا. أضيف القسم 24 كطبقة سياق للأحداث والجلسات واللغات؛ لا يحول المشاعر أو الأخبار إلى أوامر ولا يخفف المخاطر. كما أضيف سجل قدرات قائم على الدليل لاستخلاص المفيد من مراجع خارجية دون تكرار المعمارية الحالية.
  كما أضيف فحص مصادر عام لـBinance/Coinbase/Kraken؛ في آخر تشغيل كانت فروق الأسعار ضمن 1% لكن latency القصوى 2518.9168ms تجاوزت حد 500ms، لذلك `signal_allowed=false` ولا يجوز استعمال الناتج كإشارة. التقرير الخام محفوظ في [`cross_source_report_2026-08-26.json`](cross_source_report_2026-08-26.json).
 
 ### تحقق القسم 23
