@@ -64,6 +64,10 @@
 | `trading_bot/analytics/governance21.py` | مراجعة مرشحين، Kill-Switch، ومنع Live authority |
 | `docs/SECTION20_IMPLEMENTATION.md` | مطابقة بنود القسم 20 ونتائج التحقق |
 | `docs/SECTION21_IMPLEMENTATION.md` | مطابقة بنود القسم 21 ونتيجة التحقق الواقعي |
+| `trading_bot/analytics/calibration22.py` | معايرة Bayesian/GP مقيدة ومدخلات Thompson سياقية، review-only |
+| `trading_bot/analytics/immune_memory22.py` | ذاكرة مناعية مشتركة، negative selection، clonal refinement، decay |
+| `trading_bot/analytics/section22.py` | منسق القسم 22 مع AuditLog وKill-Switch |
+| `docs/SECTION22_IMPLEMENTATION.md` | مطابقة بنود القسم 22 ونتيجة التحقق الواقعي |
 | `assets/orca_max_mouny/orca-whale.svg` | شعار حوت الأوركا بصيغة SVG |
 | `deploy/` | قالب Docker/systemd ونشر مستقل للمضيف الدائم |
 
@@ -82,6 +86,7 @@ PYTHONPATH=. python3 -m trading_bot.app paper-history
 PYTHONPATH=. python3 scripts/orca_meta_label_real.py
 PYTHONPATH=. python3 scripts/orca_optimize_real.py
 PYTHONPATH=. python3 scripts/orca_section21_real.py
+PYTHONPATH=. python3 scripts/orca_section22_real.py
 python3 -m trading_bot.cli.doctor
 pytest -q tests/trading_bot
 ```
@@ -106,7 +111,9 @@ pytest -q tests/trading_bot
 
 شغّل `scripts/orca_section21_real.py` على 1000 شمعة BTC/USDT عامة من Binance. نتج 16 مرشحًا عازلًا، صفر مؤهل للتنفيذ، CVaR 95% = 0.7544%، وأسوأ سحب في 24 سيناريو ضغط = 32.3411%. ظهر تحذير PSI = 0.2656، ورفضت الحوكمة المرشح بسبب فشل CPCV/PBO/DSR وshadow. لم تُرسل أوامر ولم تُستخدم مفاتيح. التفاصيل في [`SECTION21_IMPLEMENTATION.md`](SECTION21_IMPLEMENTATION.md) و[`section21_report_2026-08-26.json`](section21_report_2026-08-26.json).
 
-القسم 21 لا يخفف حدود المخاطر، ولا يملك سلطة Live مباشرة، وأي تغير هيكلي يحتاج مراجعة. مفاتيح Sandbox وLive، فحص منصات المستخدم، وتشغيل Windows الفعلي ما تزال خارج هذه البيئة.
+القسم 21 لا يخفف حدود المخاطر، ولا يملك سلطة Live مباشرة، وأي تغير هيكلي يحتاج مراجعة. أضيف القسم 22 كحلقة معايرة وذاكرة مناعية review-only؛ الاقتراحات محكومة بنطاقات آمنة، والذاكرة لا تخفف إلا عبر اضمحلال تدريجي واختبار ظلي. تحقق القسم 22 على 1000 شمعة عامة نتج عنه اقتراح واحد، صفر تنفيذ، 44 antigen proxy، و43 كاشفًا محتفظًا، مع رفض بوابات CPCV/PBO/DSR/shadow؛ لا توجد دعوى تحسن. التفاصيل في [`SECTION22_IMPLEMENTATION.md`](SECTION22_IMPLEMENTATION.md) و[`section22_report_2026-08-26.json`](section22_report_2026-08-26.json).
+
+مفاتيح Sandbox وLive، فحص منصات المستخدم، وتشغيل Windows الفعلي ما تزال خارج هذه البيئة.
 
 ## مراجع التنفيذ
 

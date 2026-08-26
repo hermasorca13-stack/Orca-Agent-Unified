@@ -1,0 +1,83 @@
+{
+  "data_source": "Binance public REST OHLCV",
+  "symbol": "BTC/USDT",
+  "interval": "1h",
+  "bars": 1000,
+  "first_timestamp": "2026-07-15T13:00:00+00:00",
+  "last_timestamp": "2026-08-26T04:00:00+00:00",
+  "market_regime_context": "quiet",
+  "calibration": {
+    "proposal_created": true,
+    "proposal": {
+      "values": {
+        "meta_probability": 0.7063953935845376,
+        "fractional_kelly": 0.1486890604321997,
+        "atr_profit_multiplier": 0.8015993076173609,
+        "atr_stop_multiplier": 0.7242944019226671,
+        "cpcv_embargo_bars": 12.0,
+        "shadow_days": 60.0,
+        "signal_threshold": 0.22097019635342696,
+        "zscore_limit": 2.86727171144616
+      },
+      "posterior_probability": 0.5,
+      "context": "quiet",
+      "reason": "bounded_gp_surrogate_bandit_over_bandit_review_only",
+      "review_only": true,
+      "execution_eligible": false
+    },
+    "result": {
+      "values": {
+        "meta_probability": 0.7063953935845376,
+        "fractional_kelly": 0.1486890604321997,
+        "atr_profit_multiplier": 0.8015993076173609,
+        "atr_stop_multiplier": 0.7242944019226671,
+        "cpcv_embargo_bars": 12.0,
+        "shadow_days": 60.0,
+        "signal_threshold": 0.22097019635342696,
+        "zscore_limit": 2.86727171144616
+      },
+      "score": 0.0,
+      "gates_passed": false,
+      "reason": "section20_gate_failed",
+      "context": "quiet"
+    },
+    "execution_eligible": false
+  },
+  "immune_proxy_exercise": {
+    "observations": 975,
+    "proxy_antigens": 44,
+    "detector_metrics": {
+      "observations": 477,
+      "confirmed_antigens": 44,
+      "true_positive_detector_matches": 40,
+      "false_positive_detector_matches": 88,
+      "detector_precision": 0.3125,
+      "detectors_retained": 43,
+      "detectors_deleted": 0,
+      "cross_system_sharing_latency_cycles": 0
+    },
+    "confirmed_hits": 530,
+    "false_positives": 847,
+    "latest_screen": {
+      "matched": false,
+      "detector_id": null,
+      "affinity": 0.0,
+      "size_multiplier": 1.0,
+      "reject": false,
+      "reason": "no_detector_match"
+    }
+  },
+  "audit": {
+    "path": "/tmp/orca_section22_audit.jsonl",
+    "events": 523
+  },
+  "comparison": {
+    "manual_quarterly_vs_calibrated_performance": "not_performed; no matched strategy backtest was run in this diagnostic"
+  },
+  "execution": {
+    "orders_submitted": 0,
+    "live_authority": false,
+    "keys_used": false
+  },
+  "disclosure": "Real public market data was used. Immune labels are a proxy exercise over candle-return feature vectors, not verified trade outcomes; no performance improvement or Live readiness is claimed."
+}

@@ -22,6 +22,9 @@ from trading_bot.analytics.online_experts import OnlineMixture
 from trading_bot.analytics.stress_generator import StressGenerator
 from trading_bot.analytics.explainability import drift_report, permutation_importance
 from trading_bot.analytics.governance21 import Section21Governance
+from trading_bot.analytics.calibration22 import BayesianCalibrator
+from trading_bot.analytics.immune_memory22 import ImmuneMemory
+from trading_bot.analytics.section22 import Section22Layer
 from trading_bot.analytics.shadow import compare_shadow_to_backtest, drift_action
 from trading_bot.analytics.retirement import evaluate as retirement_evaluate
 from trading_bot.risk.kelly import confidence_volatility_size
@@ -94,6 +97,47 @@ def test_validation_tools_run_without_future_data():
     assert "wide_spread_net_pnl" in stress_suite(frame, signal_fn)
 
 
+def test_section22_calibration_is_bounded_review_only():
+    calibrator = BayesianCalibrator(seed=22)
+    proposal = calibrator.propose(context="quiet")
+    assert proposal is not None
+    assert proposal.review_only is True and proposal.execution_eligible is False
+    assert 0.50 <= proposal.values["meta_probability"] <= 0.80
+    assert 0.01 <= proposal.values["fractional_kelly"] <= 0.25
+    with pytest.raises(PermissionError):
+        calibrator.update_safe_range("meta_probability", 0.51, 0.79, reviewer="reviewer")
+    calibrator.mark_quarterly_review("risk-reviewer")
+    calibrator.update_safe_range("meta_probability", 0.51, 0.79, reviewer="risk-reviewer")
+    discrete = calibrator.thompson_discrete(name="shadow_days", context="quiet")
+    assert discrete in (7.0, 14.0, 30.0, 60.0, 90.0)
+
+
+def test_section22_immune_memory_shares_detector_and_only_tightens():
+    memory = ImmuneMemory(radius=1.0, reject_affinity=0.8)
+    memory.add_self((0.0, 0.0))
+    observation = memory.confirm_outcome((3.0, 3.0), pnl=-2.0, risk_budget=1.0, expected_edge=0.1, network_stress=True)
+    assert observation.antigen is True
+    match = memory.screen((3.0, 3.0))
+    assert match.matched is True and match.size_multiplier <= 1.0
+    assert match.reject is True
+    memory.decay_cycle(shadow_pass=True)
+    assert memory.detectors
+    detector_id = next(iter(memory.detectors))
+    memory.confirm_outcome((3.0, 3.0), pnl=-2.0, risk_budget=1.0, expected_edge=0.1)
+    assert any(detector.confirmed_hits >= 1 for detector in memory.detectors.values())
+    memory.network_adjust(detector_id, contagion_affected=True)
+
+
+def test_section22_layer_halts_and_integrates_with_section20(tmp_path):
+    kill = KillSwitch(tmp_path / "kill.json")
+    layer = Section22Layer(kill_switch=kill)
+    result = layer.on_trade_closed(features=(2.0, 2.0), pnl=-2.0, risk_budget=1.0, expected_edge=0.1)
+    assert result.immune.antigen is True
+    assert result.screen.size_multiplier <= 1.0
+    layer.halt("test_halt")
+    assert layer.propose() is None
+
+
 def test_section21_governance_is_review_only_and_kill_switch_bound(tmp_path):
     kill = KillSwitch(tmp_path / "kill.json")
     governance = Section21Governance(kill)
@@ -160,13 +204,16 @@ def test_section21_alpha_candidates_are_unvalidated_by_default():
 def test_section20_layer_updates_feedback_and_shadow_state():
     layer = Section20Layer()
     fill = Fill("id", "paper", "BTC/USDT", Side.BUY, 1.0, 100.10, 0.0, "USD")
-    cost, decisions = layer.on_closed_trade(exchange="paper", symbol="BTC/USDT", expected_price=100.0, fill=fill, strategy="momentum", window=PerformanceWindow("momentum", 50, 0.55, 1.1, 0.2), base_cost=CostEstimate(4.0, 1.0, 2.0, 0.0, 0.0, 0.0, 0.0))
+    cost, decisions = layer.on_closed_trade(exchange="paper", symbol="BTC/USDT", expected_price=100.0, fill=fill, strategy="momentum", window=PerformanceWindow("momentum", 50, 0.55, 1.1, 0.2), base_cost=CostEstimate(4.0, 1.0, 2.0, 0.0, 0.0, 0.0, 0.0), section22_features=(2.0, 2.0), realized_pnl=-2.0, risk_budget=1.0, expected_edge=0.1, network_stress=True)
     assert cost.slippage > 0.0 and decisions
     gate = layer.shadow_gate(shadow_win_rate=0.5, backtest_win_rate=0.52, shadow_pnl=10, backtest_pnl=10, shadow_trades=30)
     assert gate.accepted is True
     section21 = layer.section21_gate(causal_pass=False, cpcv_pass=False, pbo=1.0, dsr=-1.0, shadow_pass=False, tail_pass=True)
     assert section21.execution_eligible is False
     assert layer.state.last_section21_decision is section21
+    section22 = layer.on_section22_trade_closed(features=(2.0, 2.0), pnl=-2.0, risk_budget=1.0, expected_edge=0.1)
+    assert section22.screen.size_multiplier <= 1.0
+    assert layer.state.last_section22_trade is section22
 
 
 def test_shadow_retirement_and_kelly_gates_are_conservative():
