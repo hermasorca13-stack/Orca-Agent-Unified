@@ -79,6 +79,11 @@
 | `docs/SECTION23_IMPLEMENTATION.md` | مطابقة بنود القسم 23 ونتيجة التحقق الواقعي |
 | `assets/orca_max_mouny/orca-whale.svg` | شعار حوت الأوركا بصيغة SVG |
 | `deploy/` | قالب Docker/systemd ونشر مستقل للمضيف الدائم |
+| `trading_bot/analytics/public_sources23.py` | Binance/Coinbase/Kraken read-only cross-source adapters |
+| `trading_bot/ops/readiness.py` | فحص Paper/Sandbox/Live والأسرار والسحب دون كشف القيم |
+| `deploy/windows/readiness.ps1` | فحص Windows للجاهزية والمصادر العامة |
+| `scripts/orca_cross_source_real.py` | تقرير Binance/Coinbase/Kraken العام مع بوابة latency |
+| `docs/cross_source_report_2026-08-26.json` | نتيجة فحص المصادر العامة الأخير |
 
 ## التشغيل
 
@@ -97,6 +102,8 @@ PYTHONPATH=. python3 scripts/orca_optimize_real.py
 PYTHONPATH=. python3 scripts/orca_section21_real.py
 PYTHONPATH=. python3 scripts/orca_section22_real.py
 PYTHONPATH=. python3 scripts/orca_section23_real.py
+PYTHONPATH=. python3 scripts/orca_cross_source_real.py
+PYTHONPATH=. python3 -m trading_bot.ops.readiness --json
 python3 -m trading_bot.cli.doctor
 pytest -q tests/trading_bot
 ```
@@ -124,6 +131,8 @@ pytest -q tests/trading_bot
 القسم 21 لا يخفف حدود المخاطر، ولا يملك سلطة Live مباشرة، وأي تغير هيكلي يحتاج مراجعة. أضيف القسم 22 كحلقة معايرة وذاكرة مناعية review-only؛ الاقتراحات محكومة بنطاقات آمنة، والذاكرة لا تخفف إلا عبر اضمحلال تدريجي واختبار ظلي. تحقق القسم 22 على 1000 شمعة عامة نتج عنه اقتراح واحد، صفر تنفيذ، 44 antigen proxy، و43 كاشفًا محتفظًا، مع رفض بوابات CPCV/PBO/DSR/shadow؛ لا توجد دعوى تحسن. التفاصيل في [`SECTION22_IMPLEMENTATION.md`](SECTION22_IMPLEMENTATION.md) و[`section22_report_2026-08-26.json`](section22_report_2026-08-26.json).
 
 مفاتيح Sandbox وLive، فحص منصات المستخدم، وتشغيل Windows الفعلي ما تزال خارج هذه البيئة.
+
+أضيف فحص جاهزية موحّد (`trading_bot.ops.readiness`) يعرض Paper وSandbox وLive دون طباعة الأسرار، ويعتبر خانة Live اختيارية ومغلقة افتراضيًا. كما أضيف فحص مصادر عام لـBinance/Coinbase/Kraken؛ في آخر تشغيل كانت فروق الأسعار ضمن 1% لكن latency القصوى 2518.9168ms تجاوزت حد 500ms، لذلك `signal_allowed=false` ولا يجوز استعمال الناتج كإشارة. التقرير الخام محفوظ في [`cross_source_report_2026-08-26.json`](cross_source_report_2026-08-26.json).
 
 ### تحقق القسم 23
 

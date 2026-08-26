@@ -33,6 +33,8 @@ $env:PYTHONPATH = '.'
 python -m trading_bot.cli.doctor
 python -m pytest -q tests/trading_bot
 python scripts\orca_live_data_smoke.py
+.\deploy\windows\readiness.ps1
+.\deploy\windows\readiness.ps1 -CrossSource
 ```
 
 لا تنتقل إلى Live من خلال تغيير متغير واحد. يجب أن ينجح فحص الاعتماد والصلاحيات وبيانات Sandbox والاختبار الرجعي والتقييم خارج العينة وWalk-Forward وMonte Carlo واختبارات الضغط، وأن يُسجَّل قرار اعتماد مستقل.
@@ -50,7 +52,7 @@ Get-ScheduledTaskInfo -TaskName 'ORCA-Max-Mouny'
 
 ## Live مقفول افتراضيًا
 
-لا توجد مفاتيح Live في النسخة. عند اعتماد Sandbox فقط، تُدخل مفاتيح Live محليًا في خزنة المستخدم نفسها، مع تعطيل السحب دائمًا. يبقى `ORCA_LIVE_CONFIRM` فارغًا حتى يصدر قرار اعتماد مستقل. أي تجاوز latency أو فشل بيانات يُفعّل Kill-Switch ويمنع فتح مراكز جديدة.
+لا توجد مفاتيح Live في النسخة. خانة Live اختيارية ولا تُنشأ تلقائيًا. عند اعتماد Sandbox فقط، وإذا اختار المستخدم لاحقًا تفعيلها بعد المراجعة الخارجية المطلوبة، تُدخل مفاتيح Live محليًا في خزنة المستخدم نفسها، مع تعطيل السحب دائمًا، باستخدام `-Live -ConfirmLive I_UNDERSTAND_ORCA_LIVE`. يبقى `ORCA_LIVE_CONFIRM` فارغًا افتراضيًا. أي تجاوز latency أو فشل بيانات يُفعّل Kill-Switch ويمنع فتح مراكز جديدة. فحص `readiness.ps1` لا يطبع قيم الأسرار ويُبقي Live غير جاهز حتى تتوافر كل شروطه.
 
 ## النسخ والاسترجاع
 

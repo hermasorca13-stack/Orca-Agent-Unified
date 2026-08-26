@@ -32,6 +32,7 @@ from trading_bot.analytics.capacity23 import CapacityAnalyzer
 from trading_bot.analytics.data_quality23 import DataQualityGate, SourcePriority
 from trading_bot.analytics.rollout23 import CapitalRamp, CodeReleaseGovernance
 from trading_bot.analytics.compliance23 import LegalComplianceGate, check_mica_counterparty
+from trading_bot.ops.readiness import check_readiness
 from trading_bot.analytics.shadow import compare_shadow_to_backtest, drift_action
 from trading_bot.analytics.retirement import evaluate as retirement_evaluate
 from trading_bot.risk.kelly import confidence_volatility_size
@@ -135,6 +136,13 @@ def test_section23_greeks_capacity_and_data_quality_guards():
     assert execution.allowed_after_prior_gates is False
     assert execution.reason == "legal_compliance_hold"
     assert section20.state.last_section23_decision is execution
+
+
+def test_gap_closure_readiness_keeps_live_slot_optional_and_closed():
+    report = check_readiness()
+    assert report.paper_ready is True
+    assert report.live_ready is False
+    assert report.withdrawals_enabled is False
 
 
 def test_section23_rollout_and_legal_holds_are_fail_closed():

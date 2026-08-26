@@ -1,0 +1,60 @@
+{
+  "as_of": "2026-08-26T17:16:29.480121+00:00",
+  "data_source": "public REST read-only",
+  "orders_submitted": 0,
+  "keys_used": false,
+  "binance": {
+    "exchange": "binance",
+    "symbol": "BTC/USDT",
+    "bid": 78228.01,
+    "ask": 78228.02,
+    "bid_size": 1.55029,
+    "ask_size": 2.05589,
+    "timestamp": "2026-08-26 17:16:31.961853+00:00",
+    "funding_rate": 0.0,
+    "open_interest": 0.0,
+    "volume_24h": 1220034804.4361415,
+    "latency_ms": 2481.619942933321
+  },
+  "coinbase": {
+    "source": "coinbase",
+    "symbol": "BTC-USD",
+    "bid": 78222.63,
+    "ask": 78226.0,
+    "received_at": "2026-08-26T17:16:34.397700+00:00",
+    "latency_ms": 2435.7991530559957
+  },
+  "kraken": {
+    "source": "kraken",
+    "symbol": "XBTUSD",
+    "bid": 78245.1,
+    "ask": 78245.2,
+    "received_at": "2026-08-26T17:16:36.916679+00:00",
+    "latency_ms": 2518.916764995083
+  },
+  "source_values": {
+    "binance": 78228.015,
+    "coinbase": 78224.315,
+    "kraken": 78245.15
+  },
+  "quality": {
+    "data_type": "spot",
+    "source_values": {
+      "binance": 78228.015,
+      "coinbase": 78224.315,
+      "kraken": 78245.15
+    },
+    "median": 78228.015,
+    "max_deviation": 0.00021903917669385784,
+    "accepted": true,
+    "selected_source": "binance",
+    "reason": "within_cross_source_deviation"
+  },
+  "latency_gate": {
+    "max_latency_ms": 2518.916764995083,
+    "limit_ms": 500.0,
+    "ok": false
+  },
+  "signal_allowed": false,
+  "disclosure": "Public read-only diagnostics; prices are asynchronous cross-source observations and are not a trading signal."
+}

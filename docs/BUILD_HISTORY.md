@@ -20,3 +20,6 @@
 | 2026-08-26 | تنفيذ القسم 23.1–23.13 | `infrastructure23.py`، `execution_quality23.py`، `derivatives23.py`، `capacity23.py`، `data_quality23.py`، `rollout23.py`، `compliance23.py`، و`section23.py`: فصل العقد، ميزانيات، VPIN، AC/SOR، MEV guard، Greeks، capacity، cross-source/PIT، rollout، legal hold، continuity، insurance، benchmark، وKill-Switch. |
 | 2026-08-26 | تحقق القسم 23 ببيانات Binance العامة | `section23_report_2026-08-26.json`: quote latency 3278.9295ms وorder-book latency 2763.9149ms مقابل حد 500ms؛ Kill-Switch فعّال، صفر أوامر، صفر مفاتيح، legal hold فعّال. |
 | 2026-08-26 | اختبارات القسم 23 | 37 اختبار ORCA ناجحًا بعد إصلاح اختبار تكامل واحد، قبل regression النهائي. |
+
+| 2026-08-26 | حزمة سد الفجوات المحلية | أضيفت موصلات قراءة عامة لـBinance/Coinbase/Kraken، بوابة cross-source مع latency، فحص `trading_bot.ops.readiness`، ومشغّل Windows `deploy/windows/readiness.ps1`. تم جعل Sandbox هو الافتراضي في `local_setup.py`، وLive لا يُختار إلا بتأكيد صريح، مع استمرار منع السحب. |
+| 2026-08-26 | تحقق المصادر والجاهزية | أُجري فحص عام فعلي لثلاث منصات؛ فرق السعر ضمن 1%، لكن أعلى latency = 2518.9168ms مقابل حد 500ms، لذلك `signal_allowed=false`. فحص الجاهزية: Paper جاهز، Sandbox يحتاج مفاتيح/فحص حساب، Live غير جاهز، والسحب معطل. صفر أوامر وصفر مفاتيح مستخدمة. |
