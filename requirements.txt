@@ -32,7 +32,7 @@ tavily-python>=0.3.0  # used by skills/web_search_skill.py
 # 2026-08-02 ADD: PDF generation + OCR (extends pdf_skill.py write/OCR)
 reportlab>=4.0.0     # used by skills/pdf_skill.py for text/markdown -> PDF
 pdf2image>=1.17.0    # used by skills/pdf_skill.py for OCR rendering
-pytesseract>=0.3.10  # used by skills/pdf_skill.py for OCR; needs tesseract binary
+pytesseract>=0.3.13  # used by skills/pdf_skill.py for OCR; needs tesseract binary
 # Note: weather, translation, wikipedia, news, fx, arxiv are all
 # stdlib-only (urllib + xml + json). arxiv is lazy-imported and
 # auto-installs on first use; not pinned to keep requirements minimal.
