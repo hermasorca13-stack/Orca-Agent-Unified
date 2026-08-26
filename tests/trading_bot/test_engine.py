@@ -8,6 +8,7 @@ from trading_bot.analytics.backtest import run_backtest
 from trading_bot.analytics.statistics import validate_pair
 from trading_bot.analytics.validation import monte_carlo_max_drawdown, out_of_sample, stress_suite, walk_forward
 from trading_bot.analytics.model_registry import ModelRegistry
+from trading_bot.analytics.optimization_cycle import CumulativeOptimizer
 from trading_bot.data.hub import MarketDataHub
 from trading_bot.storage.market_store import MarketStore
 from trading_bot.strategies.arbitrage import cross_exchange_signal
@@ -20,6 +21,7 @@ from trading_bot.risk.gates import MarketContext, RiskEngine
 from trading_bot.risk.policy import PortfolioPolicy, PortfolioState
 from trading_bot.risk.kill_switch import KillSwitch
 from trading_bot.risk.hedging import beta_weighted_hedge
+from trading_bot.security.vault import LocalApiVault, VaultError
 from trading_bot.models import Position
 from trading_bot.monitoring import OperationalMonitor
 from trading_bot.storage.audit import AuditLog
@@ -75,6 +77,22 @@ def test_validation_tools_run_without_future_data():
     assert len(walk_forward(frame, signal_fn, train_size=220, test_size=40)) > 0
     assert monte_carlo_max_drawdown([0.01, -0.005, 0.008, -0.004]) >= 0.0
     assert "wide_spread_net_pnl" in stress_suite(frame, signal_fn)
+
+
+def test_cumulative_optimizer_records_rejected_promotion(tmp_path):
+    index = pd.date_range("2025-01-01", periods=600, freq="D", tz="UTC")
+    close = pd.Series([100 + i * 0.1 for i in range(600)], index=index)
+    frame = pd.DataFrame({"open": close, "high": close + 1, "low": close - 1, "close": close + 0.2, "volume": 1_000_000.0}, index=index)
+    record = CumulativeOptimizer(tmp_path / "optimization_history.json").run_sma_cycle(frame.iloc[:420], frame.iloc[200:])
+    assert isinstance(record["promoted"], bool)
+    assert isinstance(record["accepted"], bool)
+    assert (tmp_path / "optimization_history.json").exists()
+
+
+def test_local_vault_rejects_withdrawal_permission(tmp_path):
+    vault = LocalApiVault(tmp_path / "credentials.json")
+    with pytest.raises(VaultError, match="withdrawal"):
+        vault.set_exchange("binance", "key", "secret", enable_withdraw=True)
 
 
 def test_model_registry_stages_and_approves_without_risk_mutation(tmp_path):

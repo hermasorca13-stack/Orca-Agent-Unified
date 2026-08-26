@@ -1055,12 +1055,12 @@ Added `.env.orca.example`, `Dockerfile.orca`, a standalone `run_orca_max_mouny.p
 ### Verification
 
 - `python3 -m compileall` — passed for the new package and Telegram compatibility layer.
-- `PYTHONPATH=. pytest -q tests/trading_bot` — **16 passed**.
+- `PYTHONPATH=. pytest -q tests/trading_bot` — **18 passed**.
 - `python3 -m trading_bot.cli.doctor` — `safe_default: true`, `syntax_errors: []`, `withdrawal_permissions: []`.
 - Paper runtime demonstration — **4 staged fills** written to the UTC JSONL audit log.
-- Full repository suite with the three external quota tests deselected — **626 passed, 4 skipped, 3 deselected**. The three deselected failures are pre-existing OpenAI quota/API tests (`DALL-E` and `Whisper`) caused by an exhausted external account quota, not by the trading addition. The initial Telegram collection mismatch was repaired additively through the existing adapter compatibility layer.
+- Full repository suite with the three external quota tests deselected — **628 passed, 4 skipped, 3 deselected**. The three deselected failures are pre-existing OpenAI quota/API tests (`DALL-E` and `Whisper`) caused by an exhausted external account quota, not by the trading addition. The initial Telegram collection mismatch was repaired additively through the existing adapter compatibility layer.
 - Public market-data verification — Binance Spot ticker, order book, 1m OHLCV, Futures funding, Futures open interest, and Fear & Greed context were fetched without sending orders. The persistent worker recorded the data and correctly triggered Kill-Switch when measured latency exceeded 500ms.
-- Added beta-weighted hedge planning, position lifecycle management, validation tooling, staged ML model registry approval, durable market storage, live-data hub, a systemd daemon template, and a real-data validation report. The expanded ORCA test suite passed **16/16**; the real-data strategy acceptance gate correctly returned **rejected**.
+- Added beta-weighted hedge planning, position lifecycle management, validation tooling, staged ML model registry approval, durable market storage, live-data hub, a systemd daemon template, local OS-keyring API setup, cumulative parameter optimization with promotion gates, and real-data reports. The expanded ORCA test suite passed **18/18**; the optimized SMA reached OOS Win Rate **44.78%** and remained correctly **rejected** for live use, while the 100% crossover result was rejected because it had only two OOS trades.
 
 ### Security decisions
 

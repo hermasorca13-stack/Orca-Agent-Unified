@@ -1,0 +1,70 @@
+{
+  "sma": {
+    "parameters": {
+      "fast": 15,
+      "slow": 40,
+      "gap_bps": 30.0
+    },
+    "in_sample": {
+      "trades": 282,
+      "wins": 96,
+      "losses": 186,
+      "net_pnl": -198.6989443127677,
+      "gross_pnl": -29.674129284965712,
+      "total_costs": 169.02481502780645,
+      "max_drawdown": 0.001986989443127677,
+      "win_rate": 0.3404255319148936,
+      "profit_factor": 0.4712993753617473,
+      "sharpe": -4.100001760755976,
+      "sortino": -5.438592261267404
+    },
+    "out_of_sample": {
+      "trades": 201,
+      "wins": 90,
+      "losses": 111,
+      "net_pnl": 8.447608594055055,
+      "gross_pnl": 129.06792448843777,
+      "total_costs": 120.62031589438446,
+      "max_drawdown": 0.000834143281553696,
+      "win_rate": 0.44776119402985076,
+      "profit_factor": 1.0236824958936934,
+      "sharpe": 0.11810187771379917,
+      "sortino": 0.21092807108202652
+    },
+    "accepted_for_live": false
+  },
+  "crossover": {
+    "parameters": {
+      "fast": 10,
+      "slow": 80,
+      "gap_bps": 10.0
+    },
+    "in_sample": {
+      "trades": 10,
+      "wins": 7,
+      "losses": 3,
+      "net_pnl": 8.145643947296776,
+      "gross_pnl": 14.145907260452155,
+      "total_costs": 6.000263313155821,
+      "max_drawdown": 2.2469256135975017e-05,
+      "win_rate": 0.7,
+      "profit_factor": 3.1293185217664043,
+      "sharpe": 5.158871807252346,
+      "sortino": 117.13065802324508
+    },
+    "out_of_sample": {
+      "trades": 2,
+      "wins": 2,
+      "losses": 0,
+      "net_pnl": 10.259029891501996,
+      "gross_pnl": 11.45904025337711,
+      "total_costs": 1.2000103618621987,
+      "max_drawdown": 0.0,
+      "win_rate": 1.0,
+      "profit_factor": Infinity,
+      "sharpe": 16.922269182753492,
+      "sortino": 0.0
+    },
+    "accepted_for_live": false
+  }
+}

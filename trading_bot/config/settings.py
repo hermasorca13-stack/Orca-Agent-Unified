@@ -95,21 +95,30 @@ def _float(name: str, default: float) -> float:
     return default if value in (None, "") else float(value)
 
 
+def _credential_from_env_or_vault(name: str) -> ExchangeCredentials:
+    prefix = name.upper()
+    values = {
+        "api_key": os.getenv(f"ORCA_{prefix}_API_KEY", ""),
+        "api_secret": os.getenv(f"ORCA_{prefix}_API_SECRET", ""),
+        "password": os.getenv(f"ORCA_{prefix}_PASSWORD", ""),
+        "uid": os.getenv(f"ORCA_{prefix}_UID", ""),
+        "sandbox": os.getenv(f"ORCA_{prefix}_SANDBOX", "1") == "1",
+        "enable_withdraw": os.getenv(f"ORCA_{prefix}_ENABLE_WITHDRAW", "0") == "1",
+    }
+    if not values["api_key"] or not values["api_secret"]:
+        try:
+            from trading_bot.security.vault import LocalApiVault
+            stored = LocalApiVault(Path(os.getenv("ORCA_CREDENTIAL_METADATA", "data/orca_max_mouny/credentials.json"))).get_exchange(name)
+            values.update({key: stored[key] for key in ("api_key", "api_secret", "password", "uid", "sandbox", "enable_withdraw") if key in stored})
+        except Exception:
+            pass
+    return ExchangeCredentials(name=name, **values)
+
+
 def load_settings() -> Settings:
     mode = TradingMode(os.getenv("ORCA_TRADING_MODE", "paper").lower())
     active = _csv("ORCA_ACTIVE_EXCHANGES")
-    credentials = tuple(
-        ExchangeCredentials(
-            name=name,
-            api_key=os.getenv(f"ORCA_{name.upper()}_API_KEY", ""),
-            api_secret=os.getenv(f"ORCA_{name.upper()}_API_SECRET", ""),
-            password=os.getenv(f"ORCA_{name.upper()}_PASSWORD", ""),
-            uid=os.getenv(f"ORCA_{name.upper()}_UID", ""),
-            sandbox=os.getenv(f"ORCA_{name.upper()}_SANDBOX", "1") == "1",
-            enable_withdraw=os.getenv(f"ORCA_{name.upper()}_ENABLE_WITHDRAW", "0") == "1",
-        )
-        for name in _csv("ORCA_CREDENTIAL_EXCHANGES", ("binance", "coinbase", "kraken"))
-    )
+    credentials = tuple(_credential_from_env_or_vault(name) for name in _csv("ORCA_CREDENTIAL_EXCHANGES", ("binance", "coinbase", "kraken")))
     settings = Settings(
         mode=mode,
         state_dir=Path(os.getenv("ORCA_STATE_DIR", "data/orca_max_mouny")),
